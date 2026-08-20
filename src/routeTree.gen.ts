@@ -10,33 +10,256 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedApiDocsRouteImport } from './routes/_authenticated/api-docs'
+import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedIntegrationsRouteImport } from './routes/_authenticated/integrations'
+import { Route as AuthenticatedKnowledgeRouteImport } from './routes/_authenticated/knowledge'
+import { Route as AuthenticatedManagersRouteImport } from './routes/_authenticated/managers'
+import { Route as AuthenticatedObjectionsRouteImport } from './routes/_authenticated/objections'
+import { Route as AuthenticatedPatternsRouteImport } from './routes/_authenticated/patterns'
+import { Route as AuthenticatedSearchRouteImport } from './routes/_authenticated/search'
+import { Route as AuthenticatedUploadRouteImport } from './routes/_authenticated/upload'
+import { Route as AuthenticatedCallsIndexRouteImport } from './routes/_authenticated/calls.index'
+import { Route as AuthenticatedCallsCallIdRouteImport } from './routes/_authenticated/calls.$callId'
+import { Route as ApiPublicV1AskRouteImport } from './routes/api/public/v1/ask'
+import { Route as ApiPublicV1CallsRouteImport } from './routes/api/public/v1/calls'
+import { Route as ApiPublicV1SearchRouteImport } from './routes/api/public/v1/search'
+import { Route as ApiPublicV1StatsRouteImport } from './routes/api/public/v1/stats'
+import { Route as ApiPublicV1CallsIdRouteImport } from './routes/api/public/v1/calls.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedApiDocsRoute = AuthenticatedApiDocsRouteImport.update({
+  id: '/api-docs',
+  path: '/api-docs',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedIntegrationsRoute =
+  AuthenticatedIntegrationsRouteImport.update({
+    id: '/integrations',
+    path: '/integrations',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedKnowledgeRoute = AuthenticatedKnowledgeRouteImport.update({
+  id: '/knowledge',
+  path: '/knowledge',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedManagersRoute = AuthenticatedManagersRouteImport.update({
+  id: '/managers',
+  path: '/managers',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedObjectionsRoute = AuthenticatedObjectionsRouteImport.update({
+  id: '/objections',
+  path: '/objections',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedPatternsRoute = AuthenticatedPatternsRouteImport.update({
+  id: '/patterns',
+  path: '/patterns',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedSearchRoute = AuthenticatedSearchRouteImport.update({
+  id: '/search',
+  path: '/search',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedUploadRoute = AuthenticatedUploadRouteImport.update({
+  id: '/upload',
+  path: '/upload',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedCallsIndexRoute = AuthenticatedCallsIndexRouteImport.update({
+  id: '/calls/',
+  path: '/calls/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedCallsCallIdRoute =
+  AuthenticatedCallsCallIdRouteImport.update({
+    id: '/calls/$callId',
+    path: '/calls/$callId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const ApiPublicV1AskRoute = ApiPublicV1AskRouteImport.update({
+  id: '/api/public/v1/ask',
+  path: '/api/public/v1/ask',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicV1CallsRoute = ApiPublicV1CallsRouteImport.update({
+  id: '/api/public/v1/calls',
+  path: '/api/public/v1/calls',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicV1SearchRoute = ApiPublicV1SearchRouteImport.update({
+  id: '/api/public/v1/search',
+  path: '/api/public/v1/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicV1StatsRoute = ApiPublicV1StatsRouteImport.update({
+  id: '/api/public/v1/stats',
+  path: '/api/public/v1/stats',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicV1CallsIdRoute = ApiPublicV1CallsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiPublicV1CallsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/api-docs': typeof AuthenticatedApiDocsRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/integrations': typeof AuthenticatedIntegrationsRoute
+  '/knowledge': typeof AuthenticatedKnowledgeRoute
+  '/managers': typeof AuthenticatedManagersRoute
+  '/objections': typeof AuthenticatedObjectionsRoute
+  '/patterns': typeof AuthenticatedPatternsRoute
+  '/search': typeof AuthenticatedSearchRoute
+  '/upload': typeof AuthenticatedUploadRoute
+  '/calls/$callId': typeof AuthenticatedCallsCallIdRoute
+  '/calls/': typeof AuthenticatedCallsIndexRoute
+  '/api/public/v1/ask': typeof ApiPublicV1AskRoute
+  '/api/public/v1/calls': typeof ApiPublicV1CallsRouteWithChildren
+  '/api/public/v1/search': typeof ApiPublicV1SearchRoute
+  '/api/public/v1/stats': typeof ApiPublicV1StatsRoute
+  '/api/public/v1/calls/$id': typeof ApiPublicV1CallsIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/api-docs': typeof AuthenticatedApiDocsRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/integrations': typeof AuthenticatedIntegrationsRoute
+  '/knowledge': typeof AuthenticatedKnowledgeRoute
+  '/managers': typeof AuthenticatedManagersRoute
+  '/objections': typeof AuthenticatedObjectionsRoute
+  '/patterns': typeof AuthenticatedPatternsRoute
+  '/search': typeof AuthenticatedSearchRoute
+  '/upload': typeof AuthenticatedUploadRoute
+  '/calls/$callId': typeof AuthenticatedCallsCallIdRoute
+  '/calls': typeof AuthenticatedCallsIndexRoute
+  '/api/public/v1/ask': typeof ApiPublicV1AskRoute
+  '/api/public/v1/calls': typeof ApiPublicV1CallsRouteWithChildren
+  '/api/public/v1/search': typeof ApiPublicV1SearchRoute
+  '/api/public/v1/stats': typeof ApiPublicV1StatsRoute
+  '/api/public/v1/calls/$id': typeof ApiPublicV1CallsIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/auth': typeof AuthRoute
+  '/_authenticated/api-docs': typeof AuthenticatedApiDocsRoute
+  '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/integrations': typeof AuthenticatedIntegrationsRoute
+  '/_authenticated/knowledge': typeof AuthenticatedKnowledgeRoute
+  '/_authenticated/managers': typeof AuthenticatedManagersRoute
+  '/_authenticated/objections': typeof AuthenticatedObjectionsRoute
+  '/_authenticated/patterns': typeof AuthenticatedPatternsRoute
+  '/_authenticated/search': typeof AuthenticatedSearchRoute
+  '/_authenticated/upload': typeof AuthenticatedUploadRoute
+  '/_authenticated/calls/$callId': typeof AuthenticatedCallsCallIdRoute
+  '/_authenticated/calls/': typeof AuthenticatedCallsIndexRoute
+  '/api/public/v1/ask': typeof ApiPublicV1AskRoute
+  '/api/public/v1/calls': typeof ApiPublicV1CallsRouteWithChildren
+  '/api/public/v1/search': typeof ApiPublicV1SearchRoute
+  '/api/public/v1/stats': typeof ApiPublicV1StatsRoute
+  '/api/public/v1/calls/$id': typeof ApiPublicV1CallsIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/api-docs'
+    | '/dashboard'
+    | '/integrations'
+    | '/knowledge'
+    | '/managers'
+    | '/objections'
+    | '/patterns'
+    | '/search'
+    | '/upload'
+    | '/calls/$callId'
+    | '/calls/'
+    | '/api/public/v1/ask'
+    | '/api/public/v1/calls'
+    | '/api/public/v1/search'
+    | '/api/public/v1/stats'
+    | '/api/public/v1/calls/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/auth'
+    | '/api-docs'
+    | '/dashboard'
+    | '/integrations'
+    | '/knowledge'
+    | '/managers'
+    | '/objections'
+    | '/patterns'
+    | '/search'
+    | '/upload'
+    | '/calls/$callId'
+    | '/calls'
+    | '/api/public/v1/ask'
+    | '/api/public/v1/calls'
+    | '/api/public/v1/search'
+    | '/api/public/v1/stats'
+    | '/api/public/v1/calls/$id'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/auth'
+    | '/_authenticated/api-docs'
+    | '/_authenticated/dashboard'
+    | '/_authenticated/integrations'
+    | '/_authenticated/knowledge'
+    | '/_authenticated/managers'
+    | '/_authenticated/objections'
+    | '/_authenticated/patterns'
+    | '/_authenticated/search'
+    | '/_authenticated/upload'
+    | '/_authenticated/calls/$callId'
+    | '/_authenticated/calls/'
+    | '/api/public/v1/ask'
+    | '/api/public/v1/calls'
+    | '/api/public/v1/search'
+    | '/api/public/v1/stats'
+    | '/api/public/v1/calls/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AuthRoute: typeof AuthRoute
+  ApiPublicV1AskRoute: typeof ApiPublicV1AskRoute
+  ApiPublicV1CallsRoute: typeof ApiPublicV1CallsRouteWithChildren
+  ApiPublicV1SearchRoute: typeof ApiPublicV1SearchRoute
+  ApiPublicV1StatsRoute: typeof ApiPublicV1StatsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +271,185 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/api-docs': {
+      id: '/_authenticated/api-docs'
+      path: '/api-docs'
+      fullPath: '/api-docs'
+      preLoaderRoute: typeof AuthenticatedApiDocsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/dashboard': {
+      id: '/_authenticated/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/integrations': {
+      id: '/_authenticated/integrations'
+      path: '/integrations'
+      fullPath: '/integrations'
+      preLoaderRoute: typeof AuthenticatedIntegrationsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/knowledge': {
+      id: '/_authenticated/knowledge'
+      path: '/knowledge'
+      fullPath: '/knowledge'
+      preLoaderRoute: typeof AuthenticatedKnowledgeRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/managers': {
+      id: '/_authenticated/managers'
+      path: '/managers'
+      fullPath: '/managers'
+      preLoaderRoute: typeof AuthenticatedManagersRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/objections': {
+      id: '/_authenticated/objections'
+      path: '/objections'
+      fullPath: '/objections'
+      preLoaderRoute: typeof AuthenticatedObjectionsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/patterns': {
+      id: '/_authenticated/patterns'
+      path: '/patterns'
+      fullPath: '/patterns'
+      preLoaderRoute: typeof AuthenticatedPatternsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/search': {
+      id: '/_authenticated/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof AuthenticatedSearchRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/upload': {
+      id: '/_authenticated/upload'
+      path: '/upload'
+      fullPath: '/upload'
+      preLoaderRoute: typeof AuthenticatedUploadRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/calls/': {
+      id: '/_authenticated/calls/'
+      path: '/calls'
+      fullPath: '/calls/'
+      preLoaderRoute: typeof AuthenticatedCallsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/calls/$callId': {
+      id: '/_authenticated/calls/$callId'
+      path: '/calls/$callId'
+      fullPath: '/calls/$callId'
+      preLoaderRoute: typeof AuthenticatedCallsCallIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/api/public/v1/ask': {
+      id: '/api/public/v1/ask'
+      path: '/api/public/v1/ask'
+      fullPath: '/api/public/v1/ask'
+      preLoaderRoute: typeof ApiPublicV1AskRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/v1/calls': {
+      id: '/api/public/v1/calls'
+      path: '/api/public/v1/calls'
+      fullPath: '/api/public/v1/calls'
+      preLoaderRoute: typeof ApiPublicV1CallsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/v1/search': {
+      id: '/api/public/v1/search'
+      path: '/api/public/v1/search'
+      fullPath: '/api/public/v1/search'
+      preLoaderRoute: typeof ApiPublicV1SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/v1/stats': {
+      id: '/api/public/v1/stats'
+      path: '/api/public/v1/stats'
+      fullPath: '/api/public/v1/stats'
+      preLoaderRoute: typeof ApiPublicV1StatsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/v1/calls/$id': {
+      id: '/api/public/v1/calls/$id'
+      path: '/$id'
+      fullPath: '/api/public/v1/calls/$id'
+      preLoaderRoute: typeof ApiPublicV1CallsIdRouteImport
+      parentRoute: typeof ApiPublicV1CallsRoute
+    }
   }
 }
 
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedApiDocsRoute: typeof AuthenticatedApiDocsRoute
+  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedIntegrationsRoute: typeof AuthenticatedIntegrationsRoute
+  AuthenticatedKnowledgeRoute: typeof AuthenticatedKnowledgeRoute
+  AuthenticatedManagersRoute: typeof AuthenticatedManagersRoute
+  AuthenticatedObjectionsRoute: typeof AuthenticatedObjectionsRoute
+  AuthenticatedPatternsRoute: typeof AuthenticatedPatternsRoute
+  AuthenticatedSearchRoute: typeof AuthenticatedSearchRoute
+  AuthenticatedUploadRoute: typeof AuthenticatedUploadRoute
+  AuthenticatedCallsCallIdRoute: typeof AuthenticatedCallsCallIdRoute
+  AuthenticatedCallsIndexRoute: typeof AuthenticatedCallsIndexRoute
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedApiDocsRoute: AuthenticatedApiDocsRoute,
+  AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedIntegrationsRoute: AuthenticatedIntegrationsRoute,
+  AuthenticatedKnowledgeRoute: AuthenticatedKnowledgeRoute,
+  AuthenticatedManagersRoute: AuthenticatedManagersRoute,
+  AuthenticatedObjectionsRoute: AuthenticatedObjectionsRoute,
+  AuthenticatedPatternsRoute: AuthenticatedPatternsRoute,
+  AuthenticatedSearchRoute: AuthenticatedSearchRoute,
+  AuthenticatedUploadRoute: AuthenticatedUploadRoute,
+  AuthenticatedCallsCallIdRoute: AuthenticatedCallsCallIdRoute,
+  AuthenticatedCallsIndexRoute: AuthenticatedCallsIndexRoute,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
+interface ApiPublicV1CallsRouteChildren {
+  ApiPublicV1CallsIdRoute: typeof ApiPublicV1CallsIdRoute
+}
+
+const ApiPublicV1CallsRouteChildren: ApiPublicV1CallsRouteChildren = {
+  ApiPublicV1CallsIdRoute: ApiPublicV1CallsIdRoute,
+}
+
+const ApiPublicV1CallsRouteWithChildren =
+  ApiPublicV1CallsRoute._addFileChildren(ApiPublicV1CallsRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AuthRoute: AuthRoute,
+  ApiPublicV1AskRoute: ApiPublicV1AskRoute,
+  ApiPublicV1CallsRoute: ApiPublicV1CallsRouteWithChildren,
+  ApiPublicV1SearchRoute: ApiPublicV1SearchRoute,
+  ApiPublicV1StatsRoute: ApiPublicV1StatsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
