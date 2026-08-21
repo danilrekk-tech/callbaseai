@@ -6,6 +6,7 @@ export type CallStatus =
   | "transcribing"
   | "transcribed"
   | "analyzing"
+  | "indexing"
   | "completed"
   | "failed";
 
@@ -15,8 +16,18 @@ export const CALL_STATUSES: CallStatus[] = [
   "transcribing",
   "transcribed",
   "analyzing",
+  "indexing",
   "completed",
   "failed",
+];
+
+/** Ordered pipeline stages shown to the user. */
+export const PIPELINE_STEPS: { status: CallStatus; label: string }[] = [
+  { status: "uploaded", label: "Загружен" },
+  { status: "transcribing", label: "Транскрибация" },
+  { status: "analyzing", label: "Анализ" },
+  { status: "indexing", label: "Индексация" },
+  { status: "completed", label: "Готово" },
 ];
 
 export type CallOutcome = "sale" | "loss" | "in_progress" | "unknown";
@@ -36,11 +47,42 @@ export const STATUS_LABELS: Record<string, string> = {
   transcribing: "Транскрибация",
   transcribed: "Транскрибирован",
   analyzing: "Анализ",
+  indexing: "Индексация",
   completed: "Готово",
   failed: "Ошибка",
 };
 
+/** Knowledge kinds: facts come from the call, inferences from the model,
+ *  patterns only exist once several calls confirm them. */
+export type InsightKind = "fact" | "inference" | "pattern";
+
+export const INSIGHT_KIND_LABELS: Record<string, string> = {
+  fact: "ФАКТ",
+  inference: "ИНТЕРПРЕТАЦИЯ",
+  pattern: "ЗАКОНОМЕРНОСТЬ",
+};
+
+/** A pattern becomes "confirmed" only after this many independent calls. */
+export const PATTERN_MIN_CONFIRMATIONS = 3;
+
 export type ProviderKind = "transcription" | "analysis" | "embedding";
+
+export const SUPPORTED_AUDIO_EXTENSIONS = [
+  "mp3",
+  "wav",
+  "m4a",
+  "mp4",
+  "aac",
+  "ogg",
+  "oga",
+  "opus",
+  "webm",
+  "flac",
+  "amr",
+  "aiff",
+] as const;
+
+export const MAX_AUDIO_BYTES = 1_000_000_000; // ElevenLabs Scribe accepts up to ~1 GB
 
 export type TranscriptSegmentInput = {
   idx: number;
@@ -49,6 +91,7 @@ export type TranscriptSegmentInput = {
   start_ms: number | null;
   end_ms: number | null;
   text: string;
+  words?: { text: string; start_ms: number | null; end_ms: number | null }[];
 };
 
 export type TranscriptionResult = {
@@ -58,6 +101,7 @@ export type TranscriptionResult = {
   languageProbability: number | null;
   fullText: string;
   wordsCount: number;
+  durationSeconds: number | null;
   segments: TranscriptSegmentInput[];
   raw: unknown;
 };
@@ -72,6 +116,7 @@ export type AnalysisResult = {
   outcome?: string | null;
   summary?: string | null;
   manager_speaker?: string | null;
+  confidence?: number | null;
   client: {
     client_type?: string | null;
     need?: string | null;
@@ -103,14 +148,23 @@ export type AnalysisResult = {
     missed_opportunities?: string[];
     good_actions?: string[];
     bad_actions?: string[];
+    actions?: string[];
     facts?: FactOrInterpretation[];
     interpretations?: FactOrInterpretation[];
   };
   call: {
     stages?: { name: string; description?: string | null }[];
-    key_moments?: { moment: string; quote?: string | null; impact?: string | null }[];
+    key_moments?: {
+      moment: string;
+      quote?: string | null;
+      impact?: string | null;
+      timestamp_ms?: number | null;
+    }[];
+    turning_points?: { moment: string; quote?: string | null; impact?: string | null }[];
     sale_reasons?: string[];
     loss_reasons?: string[];
+    sale_reason?: string | null;
+    loss_reason?: string | null;
     turning_point?: string | null;
     effective_phrases?: string[];
     ineffective_phrases?: string[];
@@ -134,4 +188,23 @@ export type AnalysisResult = {
     confidence?: number | null;
     evidence?: string | null;
   }[];
+};
+
+export type ProviderHealth = {
+  id: string;
+  name: string;
+  kind: string;
+  model: string | null;
+  enabled: boolean;
+  status: string;
+  priority: number;
+  last_error: string | null;
+  last_error_at: string | null;
+  last_success_at: string | null;
+  last_latency_ms: number | null;
+  avg_latency_ms: number | null;
+  request_count: number;
+  success_count: number;
+  error_count: number;
+  secret_name: string | null;
 };
