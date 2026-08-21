@@ -22,6 +22,7 @@ export type Database = {
           error: string | null
           finished_at: string | null
           id: string
+          latency_ms: number | null
           model: string | null
           provider: string | null
           stage: string
@@ -35,6 +36,7 @@ export type Database = {
           error?: string | null
           finished_at?: string | null
           id?: string
+          latency_ms?: number | null
           model?: string | null
           provider?: string | null
           stage: string
@@ -48,6 +50,7 @@ export type Database = {
           error?: string | null
           finished_at?: string | null
           id?: string
+          latency_ms?: number | null
           model?: string | null
           provider?: string | null
           stage?: string
@@ -66,6 +69,7 @@ export type Database = {
       }
       ai_providers: {
         Row: {
+          avg_latency_ms: number | null
           base_url: string | null
           created_at: string
           enabled: boolean
@@ -74,6 +78,7 @@ export type Database = {
           kind: string
           last_error: string | null
           last_error_at: string | null
+          last_latency_ms: number | null
           last_success_at: string | null
           model: string | null
           name: string
@@ -81,9 +86,11 @@ export type Database = {
           request_count: number
           secret_name: string | null
           status: string
+          success_count: number
           updated_at: string
         }
         Insert: {
+          avg_latency_ms?: number | null
           base_url?: string | null
           created_at?: string
           enabled?: boolean
@@ -92,6 +99,7 @@ export type Database = {
           kind: string
           last_error?: string | null
           last_error_at?: string | null
+          last_latency_ms?: number | null
           last_success_at?: string | null
           model?: string | null
           name: string
@@ -99,9 +107,11 @@ export type Database = {
           request_count?: number
           secret_name?: string | null
           status?: string
+          success_count?: number
           updated_at?: string
         }
         Update: {
+          avg_latency_ms?: number | null
           base_url?: string | null
           created_at?: string
           enabled?: boolean
@@ -110,6 +120,7 @@ export type Database = {
           kind?: string
           last_error?: string | null
           last_error_at?: string | null
+          last_latency_ms?: number | null
           last_success_at?: string | null
           model?: string | null
           name?: string
@@ -117,6 +128,7 @@ export type Database = {
           request_count?: number
           secret_name?: string | null
           status?: string
+          success_count?: number
           updated_at?: string
         }
         Relationships: []
@@ -159,7 +171,9 @@ export type Database = {
       }
       call_analyses: {
         Row: {
+          buying_signals: string[]
           call_id: string
+          confidence: number | null
           created_at: string
           effective_phrases: string[]
           facts: Json
@@ -167,19 +181,32 @@ export type Database = {
           ineffective_phrases: string[]
           interpretations: Json
           key_moments: Json
+          loss_reason: string | null
           loss_reasons: string[]
+          loss_signals: string[]
+          manager_actions: string[]
+          manager_mistakes: string[]
           model: string | null
+          motivation: string | null
+          needs: string[]
           outcome: string | null
+          pain_points: string[]
           provider: string | null
           raw: Json | null
           recommendations: string[]
+          sale_reason: string | null
           sale_reasons: string[]
           stages: Json
+          successful_phrases: string[]
           summary: string | null
           turning_point: string | null
+          turning_points: Json
+          unsuccessful_phrases: string[]
         }
         Insert: {
+          buying_signals?: string[]
           call_id: string
+          confidence?: number | null
           created_at?: string
           effective_phrases?: string[]
           facts?: Json
@@ -187,19 +214,32 @@ export type Database = {
           ineffective_phrases?: string[]
           interpretations?: Json
           key_moments?: Json
+          loss_reason?: string | null
           loss_reasons?: string[]
+          loss_signals?: string[]
+          manager_actions?: string[]
+          manager_mistakes?: string[]
           model?: string | null
+          motivation?: string | null
+          needs?: string[]
           outcome?: string | null
+          pain_points?: string[]
           provider?: string | null
           raw?: Json | null
           recommendations?: string[]
+          sale_reason?: string | null
           sale_reasons?: string[]
           stages?: Json
+          successful_phrases?: string[]
           summary?: string | null
           turning_point?: string | null
+          turning_points?: Json
+          unsuccessful_phrases?: string[]
         }
         Update: {
+          buying_signals?: string[]
           call_id?: string
+          confidence?: number | null
           created_at?: string
           effective_phrases?: string[]
           facts?: Json
@@ -207,16 +247,27 @@ export type Database = {
           ineffective_phrases?: string[]
           interpretations?: Json
           key_moments?: Json
+          loss_reason?: string | null
           loss_reasons?: string[]
+          loss_signals?: string[]
+          manager_actions?: string[]
+          manager_mistakes?: string[]
           model?: string | null
+          motivation?: string | null
+          needs?: string[]
           outcome?: string | null
+          pain_points?: string[]
           provider?: string | null
           raw?: Json | null
           recommendations?: string[]
+          sale_reason?: string | null
           sale_reasons?: string[]
           stages?: Json
+          successful_phrases?: string[]
           summary?: string | null
           turning_point?: string | null
+          turning_points?: Json
+          unsuccessful_phrases?: string[]
         }
         Relationships: [
           {
@@ -737,6 +788,7 @@ export type Database = {
           kind: string | null
           name: string
           outcome_link: string | null
+          status: string
           success_count: number
           success_rate: number | null
           updated_at: string
@@ -750,6 +802,7 @@ export type Database = {
           kind?: string | null
           name: string
           outcome_link?: string | null
+          status?: string
           success_count?: number
           success_rate?: number | null
           updated_at?: string
@@ -763,6 +816,7 @@ export type Database = {
           kind?: string | null
           name?: string
           outcome_link?: string | null
+          status?: string
           success_count?: number
           success_rate?: number | null
           updated_at?: string
