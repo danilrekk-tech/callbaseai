@@ -7,6 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { analyzeTranscript } from "./analysis.server";
 import { createEmbeddings } from "./registry.server";
 import { transcribeAudio } from "./transcription.server";
+import { PATTERN_MIN_CONFIRMATIONS } from "./types";
 import type { AnalysisResult, CallStatus, TranscriptSegmentInput } from "./types";
 
 async function setStatus(
