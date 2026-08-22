@@ -1,4 +1,6 @@
 // Structured call analysis through the provider-agnostic chat abstraction.
+// The model answer is validated; on invalid JSON or a broken shape the model is
+// asked to repair its own output before we give up.
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { chatCompletion } from "./registry.server";
@@ -8,6 +10,7 @@ const SYSTEM_PROMPT = `Ты — старший аналитик отдела п�
 Ты анализируешь расшифровки телефонных звонков менеджеров с клиентами и извлекаешь структурированные знания.
 Строго разделяй ФАКТЫ (то, что буквально сказано в транскрипции, с цитатой) и ИНТЕРПРЕТАЦИИ (твои выводы).
 Никогда не выдумывай факты, которых нет в тексте. Если данных нет — используй null или пустой массив.
+Указывай confidence (0..1) — насколько ты уверен в анализе с учётом качества расшифровки.
 Отвечай ТОЛЬКО валидным JSON без markdown-обёрток. Все текстовые значения — на русском языке.`;
 
 const SCHEMA_HINT = `{
@@ -15,6 +18,7 @@ const SCHEMA_HINT = `{
   "outcome": "sale | loss | in_progress | unknown",
   "summary": "краткое резюме звонка (2-4 предложения)",
   "manager_speaker": "идентификатор спикера-менеджера из транскрипции, например speaker_0",
+  "confidence": 0.8,
   "client": {
     "client_type": "", "need": "", "motivation": "",
     "pains": [], "choice_criteria": [], "budget_sensitivity": "", "interest_level": "",
@@ -33,8 +37,12 @@ const SCHEMA_HINT = `{
   },
   "call": {
     "stages": [{"name": "", "description": ""}],
-    "key_moments": [{"moment": "", "quote": "", "impact": ""}],
-    "sale_reasons": [], "loss_reasons": [], "turning_point": "",
+    "key_moments": [{"moment": "", "quote": "", "impact": "", "timestamp_ms": null}],
+    "turning_points": [{"moment": "", "quote": "", "impact": ""}],
+    "sale_reasons": [], "loss_reasons": [],
+    "sale_reason": "главная причина продажи или null",
+    "loss_reason": "главная причина потери или null",
+    "turning_point": "",
     "effective_phrases": [], "ineffective_phrases": [], "recommendations": [],
     "facts": [{"statement": "", "evidence": ""}],
     "interpretations": [{"statement": "", "evidence": ""}]
@@ -65,6 +73,49 @@ function scoreOf(value: unknown): number | null {
   return typeof num === "number" && Number.isFinite(num) ? num : null;
 }
 
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Returns a list of problems; empty list means the payload is usable. */
+function validateShape(payload: unknown): string[] {
+  const problems: string[] = [];
+  if (!isObject(payload)) return ["корень ответа должен быть объектом"];
+  if (typeof payload["summary"] !== "string" || payload["summary"].trim().length < 10) {
+    problems.push("поле summary должно быть строкой не короче 10 символов");
+  }
+  if (typeof payload["outcome"] !== "string") problems.push("поле outcome обязательно (строка)");
+  for (const key of ["client", "manager", "call"]) {
+    if (!isObject(payload[key])) problems.push(`поле ${key} должно быть объектом`);
+  }
+  for (const key of ["objections", "patterns"]) {
+    if (payload[key] !== undefined && !Array.isArray(payload[key])) {
+      problems.push(`поле ${key} должно быть массивом`);
+    }
+  }
+  return problems;
+}
+
+function normalize(parsed: Record<string, unknown>): AnalysisResult {
+  const client = (parsed["client"] ?? {}) as Record<string, unknown>;
+  const manager = (parsed["manager"] ?? {}) as Record<string, unknown>;
+  const call = (parsed["call"] ?? {}) as Record<string, unknown>;
+
+  return {
+    ...(parsed as unknown as AnalysisResult),
+    confidence: scoreOf(parsed["confidence"]),
+    client: { ...(client as AnalysisResult["client"]) },
+    manager: {
+      ...(manager as AnalysisResult["manager"]),
+      empathy_score: scoreOf(manager["empathy_score"]),
+      expertise_score: scoreOf(manager["expertise_score"]),
+      pressure_score: scoreOf(manager["pressure_score"]),
+      overall_score: scoreOf(manager["overall_score"]),
+    },
+    call: call as AnalysisResult["call"],
+  };
+}
+
 export async function analyzeTranscript(
   db: SupabaseClient,
   input: {
@@ -93,40 +144,48 @@ export async function analyzeTranscript(
     .filter(Boolean)
     .join("\n");
 
-  const { content, provider } = await chatCompletion(
-    db,
-    [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: userPrompt },
-    ],
-    { jsonMode: true, maxTokens: 6000, temperature: 0.15 },
-  );
+  const messages: { role: "system" | "user" | "assistant"; content: string }[] = [
+    { role: "system", content: SYSTEM_PROMPT },
+    { role: "user", content: userPrompt },
+  ];
 
-  const parsed = extractJson(content) as Record<string, unknown>;
-  const client = (parsed["client"] ?? {}) as Record<string, unknown>;
-  const manager = (parsed["manager"] ?? {}) as Record<string, unknown>;
+  let lastError = "";
+  // one initial attempt + up to two self-repair rounds
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const { content, provider } = await chatCompletion(db, messages, {
+      jsonMode: true,
+      maxTokens: 6000,
+      temperature: attempt === 0 ? 0.15 : 0,
+    });
 
-  const analysis: AnalysisResult = {
-    ...(parsed as unknown as AnalysisResult),
-    client: {
-      ...(client as AnalysisResult["client"]),
-    },
-    manager: {
-      ...(manager as AnalysisResult["manager"]),
-      empathy_score: scoreOf(manager["empathy_score"]),
-      expertise_score: scoreOf(manager["expertise_score"]),
-      pressure_score: scoreOf(manager["pressure_score"]),
-      overall_score: scoreOf(manager["overall_score"]),
-    },
-    call: (parsed["call"] ?? {}) as AnalysisResult["call"],
-  };
+    let parsed: Record<string, unknown> | null = null;
+    let problems: string[] = [];
+    try {
+      parsed = extractJson(content) as Record<string, unknown>;
+      problems = validateShape(parsed);
+    } catch (error) {
+      problems = [error instanceof Error ? error.message : String(error)];
+    }
 
-  return {
-    analysis,
-    provider: provider.name,
-    model: provider.model ?? "unknown",
-    raw: content,
-  };
+    if (parsed && problems.length === 0) {
+      return {
+        analysis: normalize(parsed),
+        provider: provider.name,
+        model: provider.model ?? "unknown",
+        raw: content,
+      };
+    }
+
+    lastError = problems.join("; ");
+    messages.push({ role: "assistant", content: content.slice(0, 4000) });
+    messages.push({
+      role: "user",
+      content: `Твой ответ не прошёл валидацию: ${lastError}.
+Исправь и верни ПОЛНЫЙ валидный JSON по той же структуре, без markdown, без пояснений.`,
+    });
+  }
+
+  throw new Error(`Модель не смогла вернуть валидный JSON анализа: ${lastError}`);
 }
 
 export async function testAnalysisConnection(

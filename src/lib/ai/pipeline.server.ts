@@ -7,6 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { analyzeTranscript } from "./analysis.server";
 import { createEmbeddings } from "./registry.server";
 import { transcribeAudio } from "./transcription.server";
+import { PATTERN_MIN_CONFIRMATIONS } from "./types";
 import type { AnalysisResult, CallStatus, TranscriptSegmentInput } from "./types";
 
 async function setStatus(
@@ -129,6 +130,27 @@ async function persistAnalysis(
       recommendations: list(call.recommendations),
       facts: call.facts ?? [],
       interpretations: call.interpretations ?? [],
+      // detailed flat fields for analytics and search
+      needs: [client.need, ...list(client.choice_criteria)].filter(
+        (v): v is string => typeof v === "string" && v.trim().length > 0,
+      ),
+      pain_points: list(client.pains),
+      motivation: client.motivation ?? null,
+      buying_signals: list(client.buying_signals),
+      loss_signals: list(client.refusal_signals),
+      manager_actions: list(manager.good_actions),
+      manager_mistakes: [...list(manager.mistakes), ...list(manager.bad_actions)],
+      successful_phrases: list(call.effective_phrases),
+      unsuccessful_phrases: list(call.ineffective_phrases),
+      turning_points:
+        call.turning_points && call.turning_points.length > 0
+          ? call.turning_points
+          : call.turning_point
+            ? [{ moment: call.turning_point }]
+            : [],
+      sale_reason: call.sale_reason ?? list(call.sale_reasons)[0] ?? null,
+      loss_reason: call.loss_reason ?? list(call.loss_reasons)[0] ?? null,
+      confidence: analysis.confidence ?? null,
       raw: { raw_response: raw.slice(0, 20000) },
     },
     { onConflict: "call_id" },
@@ -157,7 +179,7 @@ async function persistAnalysis(
         insightRows.push({
           call_id: callId,
           category,
-          kind: "interpretation",
+          kind: "inference",
           statement: item.statement,
           evidence: item.evidence ?? null,
         });
@@ -215,6 +237,7 @@ async function persistAnalysis(
           kind: pattern.kind ?? null,
           outcome_link: pattern.outcome_link ?? null,
           confidence: pattern.confidence ?? null,
+          status: "candidate",
         })
         .select("id")
         .single();
@@ -271,6 +294,48 @@ function buildChunks(
       source_type: "objection",
       title: `Возражение: ${objection.title}`,
       content: `${header}\nВозражение: ${objection.title}\nЦитата клиента: ${objection.quote ?? "-"}\nОтвет менеджера: ${objection.manager_response ?? "-"}\nОтработано: ${objection.handled ? "да" : "нет"} (${objection.handling_quality ?? "-"})`,
+    });
+  }
+
+  for (const moment of call.key_moments ?? []) {
+    if (!moment?.moment) continue;
+    chunks.push({
+      source_type: "key_moment",
+      title: `Ключевой момент: ${moment.moment.slice(0, 80)}`,
+      content: `${header}\nМомент: ${moment.moment}\nЦитата: ${moment.quote ?? "-"}\nВлияние: ${moment.impact ?? "-"}`,
+    });
+  }
+
+  if (list(manager.good_actions).length > 0 || list(manager.mistakes).length > 0) {
+    chunks.push({
+      source_type: "manager_actions",
+      title: "Действия менеджера",
+      content: `${header}\nЧто сработало: ${list(manager.good_actions).join("; ")}\nОшибки: ${[...list(manager.mistakes), ...list(manager.bad_actions)].join("; ")}`,
+    });
+  }
+
+  if (list(call.effective_phrases).length > 0) {
+    chunks.push({
+      source_type: "successful_phrases",
+      title: "Успешные формулировки",
+      content: `${header}\n${list(call.effective_phrases).join("\n")}`,
+    });
+  }
+
+  if (list(call.loss_reasons).length > 0 || call.loss_reason) {
+    chunks.push({
+      source_type: "loss_reason",
+      title: "Причины отказа",
+      content: `${header}\nГлавная причина: ${call.loss_reason ?? "-"}\nВсе причины: ${list(call.loss_reasons).join("; ")}`,
+    });
+  }
+
+  for (const pattern of analysis.patterns ?? []) {
+    if (!pattern?.name) continue;
+    chunks.push({
+      source_type: "pattern",
+      title: `Закономерность: ${pattern.name}`,
+      content: `${header}\nЗакономерность: ${pattern.name}\nОписание: ${pattern.description ?? "-"}\nТип: ${pattern.kind ?? "-"}\nСвязь с результатом: ${pattern.outcome_link ?? "-"}\nОснование: ${pattern.evidence ?? "-"}`,
     });
   }
 
@@ -542,6 +607,8 @@ export async function refreshAggregates(db: SupabaseClient) {
         success_count: wins.length,
         success_rate: decided.length > 0 ? wins.length / decided.length : null,
         confidence: Math.min(0.95, 0.35 + rows.length * 0.1),
+        // a pattern only becomes a real pattern once enough independent calls confirm it
+        status: rows.length >= PATTERN_MIN_CONFIRMATIONS ? "confirmed" : "candidate",
       })
       .eq("id", pattern.id as string);
   }
