@@ -129,6 +129,27 @@ async function persistAnalysis(
       recommendations: list(call.recommendations),
       facts: call.facts ?? [],
       interpretations: call.interpretations ?? [],
+      // detailed flat fields for analytics and search
+      needs: [client.need, ...list(client.choice_criteria)].filter(
+        (v): v is string => typeof v === "string" && v.trim().length > 0,
+      ),
+      pain_points: list(client.pains),
+      motivation: client.motivation ?? null,
+      buying_signals: list(client.buying_signals),
+      loss_signals: list(client.refusal_signals),
+      manager_actions: list(manager.good_actions),
+      manager_mistakes: [...list(manager.mistakes), ...list(manager.bad_actions)],
+      successful_phrases: list(call.effective_phrases),
+      unsuccessful_phrases: list(call.ineffective_phrases),
+      turning_points:
+        call.turning_points && call.turning_points.length > 0
+          ? call.turning_points
+          : call.turning_point
+            ? [{ moment: call.turning_point }]
+            : [],
+      sale_reason: call.sale_reason ?? list(call.sale_reasons)[0] ?? null,
+      loss_reason: call.loss_reason ?? list(call.loss_reasons)[0] ?? null,
+      confidence: analysis.confidence ?? null,
       raw: { raw_response: raw.slice(0, 20000) },
     },
     { onConflict: "call_id" },
