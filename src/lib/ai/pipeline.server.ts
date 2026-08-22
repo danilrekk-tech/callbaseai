@@ -297,6 +297,48 @@ function buildChunks(
     });
   }
 
+  for (const moment of call.key_moments ?? []) {
+    if (!moment?.moment) continue;
+    chunks.push({
+      source_type: "key_moment",
+      title: `Ключевой момент: ${moment.moment.slice(0, 80)}`,
+      content: `${header}\nМомент: ${moment.moment}\nЦитата: ${moment.quote ?? "-"}\nВлияние: ${moment.impact ?? "-"}`,
+    });
+  }
+
+  if (list(manager.good_actions).length > 0 || list(manager.mistakes).length > 0) {
+    chunks.push({
+      source_type: "manager_actions",
+      title: "Действия менеджера",
+      content: `${header}\nЧто сработало: ${list(manager.good_actions).join("; ")}\nОшибки: ${[...list(manager.mistakes), ...list(manager.bad_actions)].join("; ")}`,
+    });
+  }
+
+  if (list(call.effective_phrases).length > 0) {
+    chunks.push({
+      source_type: "successful_phrases",
+      title: "Успешные формулировки",
+      content: `${header}\n${list(call.effective_phrases).join("\n")}`,
+    });
+  }
+
+  if (list(call.loss_reasons).length > 0 || call.loss_reason) {
+    chunks.push({
+      source_type: "loss_reason",
+      title: "Причины отказа",
+      content: `${header}\nГлавная причина: ${call.loss_reason ?? "-"}\nВсе причины: ${list(call.loss_reasons).join("; ")}`,
+    });
+  }
+
+  for (const pattern of analysis.patterns ?? []) {
+    if (!pattern?.name) continue;
+    chunks.push({
+      source_type: "pattern",
+      title: `Закономерность: ${pattern.name}`,
+      content: `${header}\nЗакономерность: ${pattern.name}\nОписание: ${pattern.description ?? "-"}\nТип: ${pattern.kind ?? "-"}\nСвязь с результатом: ${pattern.outcome_link ?? "-"}\nОснование: ${pattern.evidence ?? "-"}`,
+    });
+  }
+
   // transcript chunks (~1800 chars) to keep verbatim evidence searchable
   let buffer = "";
   let part = 1;
