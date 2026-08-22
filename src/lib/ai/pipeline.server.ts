@@ -236,6 +236,7 @@ async function persistAnalysis(
           kind: pattern.kind ?? null,
           outcome_link: pattern.outcome_link ?? null,
           confidence: pattern.confidence ?? null,
+          status: "candidate",
         })
         .select("id")
         .single();
