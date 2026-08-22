@@ -564,6 +564,8 @@ export async function refreshAggregates(db: SupabaseClient) {
         success_count: wins.length,
         success_rate: decided.length > 0 ? wins.length / decided.length : null,
         confidence: Math.min(0.95, 0.35 + rows.length * 0.1),
+        // a pattern only becomes a real pattern once enough independent calls confirm it
+        status: rows.length >= PATTERN_MIN_CONFIRMATIONS ? "confirmed" : "candidate",
       })
       .eq("id", pattern.id as string);
   }
