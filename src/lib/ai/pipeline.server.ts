@@ -178,7 +178,7 @@ async function persistAnalysis(
         insightRows.push({
           call_id: callId,
           category,
-          kind: "interpretation",
+          kind: "inference",
           statement: item.statement,
           evidence: item.evidence ?? null,
         });
