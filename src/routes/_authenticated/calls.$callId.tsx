@@ -38,10 +38,22 @@ function CallDetail() {
   const fetchDetail = useServerFn(getCallDetail);
   const reprocess = useServerFn(processCall);
   const queryClient = useQueryClient();
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [currentMs, setCurrentMs] = useState(0);
+
+  const seekTo = (ms: number | null) => {
+    if (ms == null || !audioRef.current) return;
+    audioRef.current.currentTime = ms / 1000;
+    void audioRef.current.play();
+  };
 
   const { data, isLoading } = useQuery({
     queryKey: ["call", callId],
     queryFn: () => fetchDetail({ data: { id: callId } }),
+    refetchInterval: (query) => {
+      const status = (query.state.data?.call as { status?: string } | undefined)?.status;
+      return status && !["completed", "failed"].includes(status) ? 5000 : false;
+    },
   });
 
   const reprocessMutation = useMutation({
