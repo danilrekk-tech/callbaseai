@@ -192,7 +192,44 @@ function CallDetail() {
               </ol>
             </div>
           ) : null}
+          {Array.isArray(analysis?.key_moments) && analysis.key_moments.length > 0 ? (
+            <div className="panel p-5">
+              <h2 className="text-lg font-semibold">Ключевые моменты</h2>
+              <ul className="mt-3 space-y-3 text-sm">
+                {(
+                  analysis.key_moments as {
+                    moment?: string;
+                    quote?: string | null;
+                    impact?: string | null;
+                    timestamp_ms?: number | null;
+                  }[]
+                ).map((moment, index) => (
+                  <li key={index} className="rounded-lg border border-border p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="font-medium">{moment.moment}</p>
+                      {moment.timestamp_ms != null && data.audioUrl ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => seekTo(moment.timestamp_ms ?? null)}
+                        >
+                          {formatMs(moment.timestamp_ms)}
+                        </Button>
+                      ) : null}
+                    </div>
+                    {moment.quote ? (
+                      <p className="mt-1 italic text-muted-foreground">«{moment.quote}»</p>
+                    ) : null}
+                    {moment.impact ? (
+                      <p className="mt-1 text-xs text-muted-foreground">{moment.impact}</p>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </TabsContent>
+
 
         <TabsContent value="client" className="mt-4">
           {clientProfile ? (
