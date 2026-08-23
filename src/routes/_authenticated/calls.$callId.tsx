@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
+import { AlertCircle, CheckCircle2, Circle, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +11,7 @@ import { LabeledList, OutcomeBadge, PageHeader, StatCard, StatusBadge } from "@/
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getCallDetail, processCall } from "@/lib/calls.functions";
+import { PIPELINE_STEPS } from "@/lib/ai/types";
 
 export const Route = createFileRoute("/_authenticated/calls/$callId")({
   head: () => ({
@@ -113,10 +115,22 @@ function CallDetail() {
         </div>
       ) : null}
 
+      <PipelineProgress status={call.status as string} />
+
       {data.audioUrl ? (
         <div className="panel mt-6 p-4">
           {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-          <audio controls src={data.audioUrl} className="w-full" />
+          <audio
+            ref={audioRef}
+            controls
+            src={data.audioUrl}
+            className="w-full"
+            onTimeUpdate={(event) => setCurrentMs(event.currentTarget.currentTime * 1000)}
+          />
+          <p className="mt-2 text-xs text-muted-foreground">
+            Позиция {formatMs(currentMs)} · нажмите на реплику в транскрипте, чтобы перейти к моменту
+            записи.
+          </p>
         </div>
       ) : null}
 
@@ -180,7 +194,44 @@ function CallDetail() {
               </ol>
             </div>
           ) : null}
+          {Array.isArray(analysis?.key_moments) && analysis.key_moments.length > 0 ? (
+            <div className="panel p-5">
+              <h2 className="text-lg font-semibold">Ключевые моменты</h2>
+              <ul className="mt-3 space-y-3 text-sm">
+                {(
+                  analysis.key_moments as {
+                    moment?: string;
+                    quote?: string | null;
+                    impact?: string | null;
+                    timestamp_ms?: number | null;
+                  }[]
+                ).map((moment, index) => (
+                  <li key={index} className="rounded-lg border border-border p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="font-medium">{moment.moment}</p>
+                      {moment.timestamp_ms != null && data.audioUrl ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => seekTo(moment.timestamp_ms ?? null)}
+                        >
+                          {formatMs(moment.timestamp_ms)}
+                        </Button>
+                      ) : null}
+                    </div>
+                    {moment.quote ? (
+                      <p className="mt-1 italic text-muted-foreground">«{moment.quote}»</p>
+                    ) : null}
+                    {moment.impact ? (
+                      <p className="mt-1 text-xs text-muted-foreground">{moment.impact}</p>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </TabsContent>
+
 
         <TabsContent value="client" className="mt-4">
           {clientProfile ? (
@@ -289,22 +340,42 @@ function CallDetail() {
               {(transcript?.full_text as string) || "Транскрипт отсутствует."}
             </p>
           ) : (
-            <div className="panel divide-y divide-border">
-              {segments.map((segment) => (
-                <div key={segment.id as string} className="flex gap-4 p-4 text-sm">
-                  <div className="w-28 shrink-0 text-xs text-muted-foreground">
-                    <p className="font-medium text-foreground">
-                      {(segment.speaker_role as string) === "manager"
-                        ? "Менеджер"
-                        : (segment.speaker_role as string) === "client"
-                          ? "Клиент"
-                          : ((segment.speaker as string) ?? "—")}
+            <div className="panel max-h-[70vh] divide-y divide-border overflow-y-auto">
+              {segments.map((segment) => {
+                const start = segment.start_ms as number | null;
+                const end = segment.end_ms as number | null;
+                const active =
+                  start != null && currentMs >= start && (end == null || currentMs < end);
+                const role = segment.speaker_role as string;
+                return (
+                  <button
+                    key={segment.id as string}
+                    type="button"
+                    onClick={() => seekTo(start)}
+                    className={`flex w-full gap-4 p-4 text-left text-sm transition-colors hover:bg-secondary/60 ${
+                      active ? "bg-accent/10" : ""
+                    }`}
+                  >
+                    <div className="w-28 shrink-0 text-xs text-muted-foreground">
+                      <p
+                        className={`font-medium ${
+                          role === "manager" ? "text-primary" : role === "client" ? "text-accent" : "text-foreground"
+                        }`}
+                      >
+                        {role === "manager"
+                          ? "Менеджер"
+                          : role === "client"
+                            ? "Клиент"
+                            : ((segment.speaker as string) ?? "—")}
+                      </p>
+                      <p>{formatMs(start)}</p>
+                    </div>
+                    <p className={`min-w-0 ${active ? "font-medium" : ""}`}>
+                      {segment.text as string}
                     </p>
-                    <p>{formatMs(segment.start_ms as number | null)}</p>
-                  </div>
-                  <p className="min-w-0">{segment.text as string}</p>
-                </div>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           )}
         </TabsContent>
@@ -392,6 +463,59 @@ function CallDetail() {
           </div>
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function PipelineProgress({ status }: { status: string }) {
+  const failed = status === "failed";
+  const activeIndex = PIPELINE_STEPS.findIndex((step) => step.status === status);
+  const doneIndex =
+    status === "completed"
+      ? PIPELINE_STEPS.length - 1
+      : status === "transcribed"
+        ? 1
+        : status === "processing"
+          ? 0
+          : activeIndex;
+
+  return (
+    <div className="panel mt-6 p-5">
+      <div className="flex flex-wrap items-center gap-2">
+        {PIPELINE_STEPS.map((step, index) => {
+          const isDone = doneIndex > index;
+          const isCurrent = doneIndex === index && !failed;
+          return (
+            <div key={step.status} className="flex items-center gap-2">
+              <span
+                className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium ${
+                  failed && index === Math.max(doneIndex, 0)
+                    ? "bg-destructive/15 text-destructive"
+                    : isDone
+                      ? "bg-success/15 text-success"
+                      : isCurrent
+                        ? "bg-primary/15 text-primary"
+                        : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {isDone ? (
+                  <CheckCircle2 className="size-3" />
+                ) : failed && index === Math.max(doneIndex, 0) ? (
+                  <AlertCircle className="size-3" />
+                ) : isCurrent ? (
+                  <Loader2 className="size-3 animate-spin" />
+                ) : (
+                  <Circle className="size-3" />
+                )}
+                {step.label}
+              </span>
+              {index < PIPELINE_STEPS.length - 1 ? (
+                <span className="h-px w-6 bg-border" aria-hidden />
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

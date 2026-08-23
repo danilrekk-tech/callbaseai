@@ -153,11 +153,39 @@ function IntegrationsPage() {
                           </Badge>
                         )
                       ) : null}
-                      <Badge variant="secondary">статус: {provider.status as string}</Badge>
+                      <Badge
+                        variant="outline"
+                        className={
+                          provider.status === "ok"
+                            ? "border-transparent bg-success/15 text-success"
+                            : provider.status === "error"
+                              ? "border-transparent bg-destructive/15 text-destructive"
+                              : "border-transparent bg-muted text-muted-foreground"
+                        }
+                      >
+                        статус: {provider.status as string}
+                      </Badge>
                       <span className="text-muted-foreground">
-                        запросов {provider.request_count as number} · ошибок{" "}
+                        запросов {provider.request_count as number} · успешно{" "}
+                        {(provider.success_count as number) ?? 0} · ошибок{" "}
                         {provider.error_count as number}
                       </span>
+                      <span className="text-muted-foreground">
+                        latency{" "}
+                        {provider.last_latency_ms != null
+                          ? `${provider.last_latency_ms as number} мс`
+                          : "—"}{" "}
+                        · средняя{" "}
+                        {provider.avg_latency_ms != null
+                          ? `${Math.round(Number(provider.avg_latency_ms))} мс`
+                          : "—"}
+                      </span>
+                      {provider.last_success_at ? (
+                        <span className="text-muted-foreground">
+                          успех:{" "}
+                          {new Date(provider.last_success_at as string).toLocaleString("ru-RU")}
+                        </span>
+                      ) : null}
                     </div>
                     {provider.last_error ? (
                       <p className="mt-1 max-w-xl text-xs text-destructive">
