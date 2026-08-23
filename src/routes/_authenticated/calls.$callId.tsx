@@ -113,10 +113,22 @@ function CallDetail() {
         </div>
       ) : null}
 
+      <PipelineProgress status={call.status as string} />
+
       {data.audioUrl ? (
         <div className="panel mt-6 p-4">
           {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-          <audio controls src={data.audioUrl} className="w-full" />
+          <audio
+            ref={audioRef}
+            controls
+            src={data.audioUrl}
+            className="w-full"
+            onTimeUpdate={(event) => setCurrentMs(event.currentTarget.currentTime * 1000)}
+          />
+          <p className="mt-2 text-xs text-muted-foreground">
+            Позиция {formatMs(currentMs)} · нажмите на реплику в транскрипте, чтобы перейти к моменту
+            записи.
+          </p>
         </div>
       ) : null}
 
