@@ -301,22 +301,42 @@ function CallDetail() {
               {(transcript?.full_text as string) || "Транскрипт отсутствует."}
             </p>
           ) : (
-            <div className="panel divide-y divide-border">
-              {segments.map((segment) => (
-                <div key={segment.id as string} className="flex gap-4 p-4 text-sm">
-                  <div className="w-28 shrink-0 text-xs text-muted-foreground">
-                    <p className="font-medium text-foreground">
-                      {(segment.speaker_role as string) === "manager"
-                        ? "Менеджер"
-                        : (segment.speaker_role as string) === "client"
-                          ? "Клиент"
-                          : ((segment.speaker as string) ?? "—")}
+            <div className="panel max-h-[70vh] divide-y divide-border overflow-y-auto">
+              {segments.map((segment) => {
+                const start = segment.start_ms as number | null;
+                const end = segment.end_ms as number | null;
+                const active =
+                  start != null && currentMs >= start && (end == null || currentMs < end);
+                const role = segment.speaker_role as string;
+                return (
+                  <button
+                    key={segment.id as string}
+                    type="button"
+                    onClick={() => seekTo(start)}
+                    className={`flex w-full gap-4 p-4 text-left text-sm transition-colors hover:bg-secondary/60 ${
+                      active ? "bg-accent/10" : ""
+                    }`}
+                  >
+                    <div className="w-28 shrink-0 text-xs text-muted-foreground">
+                      <p
+                        className={`font-medium ${
+                          role === "manager" ? "text-primary" : role === "client" ? "text-accent" : "text-foreground"
+                        }`}
+                      >
+                        {role === "manager"
+                          ? "Менеджер"
+                          : role === "client"
+                            ? "Клиент"
+                            : ((segment.speaker as string) ?? "—")}
+                      </p>
+                      <p>{formatMs(start)}</p>
+                    </div>
+                    <p className={`min-w-0 ${active ? "font-medium" : ""}`}>
+                      {segment.text as string}
                     </p>
-                    <p>{formatMs(segment.start_ms as number | null)}</p>
-                  </div>
-                  <p className="min-w-0">{segment.text as string}</p>
-                </div>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           )}
         </TabsContent>
