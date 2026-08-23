@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
+import { AlertCircle, CheckCircle2, Circle, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +11,7 @@ import { LabeledList, OutcomeBadge, PageHeader, StatCard, StatusBadge } from "@/
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getCallDetail, processCall } from "@/lib/calls.functions";
+import { PIPELINE_STEPS } from "@/lib/ai/types";
 
 export const Route = createFileRoute("/_authenticated/calls/$callId")({
   head: () => ({
@@ -461,6 +463,59 @@ function CallDetail() {
           </div>
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function PipelineProgress({ status }: { status: string }) {
+  const failed = status === "failed";
+  const activeIndex = PIPELINE_STEPS.findIndex((step) => step.status === status);
+  const doneIndex =
+    status === "completed"
+      ? PIPELINE_STEPS.length - 1
+      : status === "transcribed"
+        ? 1
+        : status === "processing"
+          ? 0
+          : activeIndex;
+
+  return (
+    <div className="panel mt-6 p-5">
+      <div className="flex flex-wrap items-center gap-2">
+        {PIPELINE_STEPS.map((step, index) => {
+          const isDone = doneIndex > index;
+          const isCurrent = doneIndex === index && !failed;
+          return (
+            <div key={step.status} className="flex items-center gap-2">
+              <span
+                className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium ${
+                  failed && index === Math.max(doneIndex, 0)
+                    ? "bg-destructive/15 text-destructive"
+                    : isDone
+                      ? "bg-success/15 text-success"
+                      : isCurrent
+                        ? "bg-primary/15 text-primary"
+                        : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {isDone ? (
+                  <CheckCircle2 className="size-3" />
+                ) : failed && index === Math.max(doneIndex, 0) ? (
+                  <AlertCircle className="size-3" />
+                ) : isCurrent ? (
+                  <Loader2 className="size-3 animate-spin" />
+                ) : (
+                  <Circle className="size-3" />
+                )}
+                {step.label}
+              </span>
+              {index < PIPELINE_STEPS.length - 1 ? (
+                <span className="h-px w-6 bg-border" aria-hidden />
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
