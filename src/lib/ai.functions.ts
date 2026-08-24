@@ -5,23 +5,56 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 export const searchKnowledge = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { query: string; limit?: number }) => input)
+  .inputValidator(
+    (input: {
+      query: string;
+      limit?: number;
+      managerId?: string | null;
+      clientName?: string | null;
+    }) => input,
+  )
   .handler(async ({ data, context }) => {
     const { semanticSearch } = await import("./ai/search.server");
     return semanticSearch(
       context.supabase as unknown as SupabaseClient,
       data.query,
       data.limit ?? 12,
+      { managerId: data.managerId ?? null, clientName: data.clientName ?? null },
     );
   });
 
 export const askKnowledge = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { question: string }) => input)
+  .inputValidator(
+    (input: { question: string; managerId?: string | null; clientName?: string | null }) => input,
+  )
   .handler(async ({ data, context }) => {
     const { askKnowledgeBase } = await import("./ai/search.server");
-    return askKnowledgeBase(context.supabase as unknown as SupabaseClient, data.question);
+    return askKnowledgeBase(
+      context.supabase as unknown as SupabaseClient,
+      data.question,
+      12,
+      { managerId: data.managerId ?? null, clientName: data.clientName ?? null },
+    );
   });
+
+export const listSearchFilters = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const [managersRes, callsRes] = await Promise.all([
+      context.supabase.from("managers").select("id, full_name").order("full_name"),
+      context.supabase.from("calls").select("client_name, client_company").limit(500),
+    ]);
+    const clients = [
+      ...new Set(
+        (callsRes.data ?? [])
+          .map((row) => row.client_name || row.client_company)
+          .filter((value): value is string => Boolean(value && value.trim())),
+      ),
+    ].sort((a, b) => a.localeCompare(b));
+    return { managers: managersRes.data ?? [], clients };
+  });
+
 
 export const listAiProviders = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
