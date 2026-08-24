@@ -167,3 +167,47 @@ export const deleteCall = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+export const assignCallManager = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { id: string; managerId: string | null }) => input)
+  .handler(async ({ data, context }) => {
+    const db = context.supabase;
+
+    const { error } = await db
+      .from("calls")
+      .update({ manager_id: data.managerId })
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+
+    // Keep manager statistics in sync: assessments drive the average scores,
+    // knowledge chunks carry manager_name used by AI search sources.
+    const { error: assessmentError } = await db
+      .from("manager_assessments")
+      .update({ manager_id: data.managerId })
+      .eq("call_id", data.id);
+    if (assessmentError) throw new Error(assessmentError.message);
+
+    let managerName: string | null = null;
+    if (data.managerId) {
+      const { data: manager } = await db
+        .from("managers")
+        .select("full_name")
+        .eq("id", data.managerId)
+        .maybeSingle();
+      managerName = (manager?.full_name as string | null) ?? null;
+    }
+
+    const { data: chunks } = await db
+      .from("knowledge_chunks")
+      .select("id, metadata")
+      .eq("call_id", data.id);
+    for (const chunk of chunks ?? []) {
+      const metadata = { ...(chunk.metadata as Record<string, unknown> | null) };
+      metadata["manager_name"] = managerName;
+      metadata["manager_id"] = data.managerId;
+      await db.from("knowledge_chunks").update({ metadata }).eq("id", chunk.id as string);
+    }
+
+    return { ok: true, managerName };
+  });
