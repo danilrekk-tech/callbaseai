@@ -30,6 +30,25 @@ export const PIPELINE_STEPS: { status: CallStatus; label: string }[] = [
   { status: "completed", label: "Готово" },
 ];
 
+/** Independent, separately retryable processing stages. */
+export type PipelineStage = "transcription" | "analysis" | "knowledge" | "embedding" | "patterns";
+
+export const PIPELINE_STAGES: PipelineStage[] = [
+  "transcription",
+  "analysis",
+  "knowledge",
+  "embedding",
+  "patterns",
+];
+
+export const STAGE_LABELS: Record<string, string> = {
+  transcription: "Транскрибация",
+  analysis: "AI-анализ",
+  knowledge: "Извлечение знаний",
+  embedding: "Эмбеддинги",
+  patterns: "Поиск закономерностей",
+};
+
 export type CallOutcome = "sale" | "loss" | "in_progress" | "unknown";
 
 export const CALL_OUTCOMES: CallOutcome[] = ["sale", "loss", "in_progress", "unknown"];
