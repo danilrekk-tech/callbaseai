@@ -373,23 +373,14 @@ function buildChunks(
   return chunks;
 }
 
-export async function indexKnowledge(
+/** Replaces the knowledge chunks of a call. Embeddings are a separate stage. */
+export async function replaceChunks(
   db: SupabaseClient,
   callId: string,
   chunks: { source_type: string; title: string; content: string }[],
   metadata: Record<string, unknown>,
 ) {
-  const { data: oldChunks } = await db.from("knowledge_chunks").select("id").eq("call_id", callId);
-  if (oldChunks && oldChunks.length > 0) {
-    await db
-      .from("knowledge_chunks")
-      .delete()
-      .in(
-        "id",
-        oldChunks.map((c) => c.id as string),
-      );
-  }
-
+  await db.from("knowledge_chunks").delete().eq("call_id", callId);
   const { data: inserted, error } = await db
     .from("knowledge_chunks")
     .insert(
@@ -401,180 +392,387 @@ export async function indexKnowledge(
         metadata,
       })),
     )
-    .select("id, content");
+    .select("id");
   if (error) throw new Error(`Не удалось сохранить чанки знаний: ${error.message}`);
+  return (inserted ?? []).length;
+}
 
-  const rows = inserted ?? [];
+/** Embeds every chunk of a call that has no vector yet (idempotent, resumable). */
+export async function embedPendingChunks(db: SupabaseClient, callId: string) {
+  const { data: chunkRows, error } = await db
+    .from("knowledge_chunks")
+    .select("id, content")
+    .eq("call_id", callId);
+  if (error) throw new Error(`Не удалось прочитать чанки знаний: ${error.message}`);
+  const chunks = chunkRows ?? [];
+  if (chunks.length === 0) return { embedded: 0, total: 0, model: null as string | null };
+
+  const { data: existing } = await db
+    .from("embeddings")
+    .select("chunk_id")
+    .in(
+      "chunk_id",
+      chunks.map((row) => row.id as string),
+    );
+  const done = new Set((existing ?? []).map((row) => row.chunk_id as string));
+  const pending = chunks.filter((row) => !done.has(row.id as string));
+
+  let model: string | null = null;
   const batchSize = 32;
-  for (let i = 0; i < rows.length; i += batchSize) {
-    const batch = rows.slice(i, i + batchSize);
-    const { vectors, model } = await createEmbeddings(
+  for (let i = 0; i < pending.length; i += batchSize) {
+    const batch = pending.slice(i, i + batchSize);
+    const result = await createEmbeddings(
       db,
       batch.map((row) => (row.content as string).slice(0, 6000)),
     );
+    model = result.model;
     const { error: embedError } = await db.from("embeddings").upsert(
       batch.map((row, index) => ({
         chunk_id: row.id as string,
-        model,
-        embedding: JSON.stringify(vectors[index]),
+        model: result.model,
+        embedding: JSON.stringify(result.vectors[index]),
       })),
       { onConflict: "chunk_id" },
     );
     if (embedError) throw new Error(`Не удалось сохранить эмбеддинги: ${embedError.message}`);
   }
-  return rows.length;
+  return { embedded: pending.length, total: chunks.length, model };
 }
 
-export async function processCallPipeline(db: SupabaseClient, callId: string) {
-  const { data: call, error } = await db
+/** Convenience: chunks + embeddings in one call. */
+export async function indexKnowledge(
+  db: SupabaseClient,
+  callId: string,
+  chunks: { source_type: string; title: string; content: string }[],
+  metadata: Record<string, unknown>,
+) {
+  const count = await replaceChunks(db, callId, chunks, metadata);
+  await embedPendingChunks(db, callId);
+  return count;
+}
+
+type CallRow = {
+  id: string;
+  file_name: string;
+  storage_path: string;
+  manager_id: string | null;
+  client_name: string | null;
+  call_date: string | null;
+  managers: { full_name?: string } | null;
+};
+
+async function loadCall(db: SupabaseClient, callId: string): Promise<CallRow> {
+  const { data, error } = await db
     .from("calls")
     .select("id, file_name, storage_path, manager_id, client_name, call_date, managers(full_name)")
     .eq("id", callId)
+    .maybeSingle();
+  if (error || !data) throw new Error("Звонок не найден");
+  return data as unknown as CallRow;
+}
+
+async function loadSegments(db: SupabaseClient, callId: string) {
+  const { data } = await db
+    .from("transcript_segments")
+    .select("idx, speaker, speaker_role, start_ms, end_ms, text")
+    .eq("call_id", callId)
+    .order("idx", { ascending: true });
+  return (data ?? []) as unknown as TranscriptSegmentInput[];
+}
+
+async function loadStoredAnalysis(db: SupabaseClient, callId: string) {
+  const { data } = await db
+    .from("call_analyses")
+    .select("provider, model, outcome, raw")
+    .eq("call_id", callId)
+    .maybeSingle();
+  const raw = (data?.raw as { analysis?: AnalysisResult } | null) ?? null;
+  if (!raw?.analysis) return null;
+  return {
+    analysis: raw.analysis,
+    provider: (data?.provider as string | null) ?? null,
+    model: (data?.model as string | null) ?? null,
+    outcome: (data?.outcome as string | null) ?? "unknown",
+  };
+}
+
+const STAGE_STATUS: Record<PipelineStage, CallStatus> = {
+  transcription: "transcribing",
+  analysis: "analyzing",
+  knowledge: "indexing",
+  embedding: "indexing",
+  patterns: "indexing",
+};
+
+async function runTranscription(db: SupabaseClient, call: CallRow) {
+  const download = await db.storage.from("call-audio").download(call.storage_path);
+  if (download.error || !download.data) {
+    throw new Error(`Не удалось получить аудио из хранилища: ${download.error?.message}`);
+  }
+  const transcription = await transcribeAudio(db, download.data, call.file_name);
+
+  const { data: transcriptRow, error: transcriptError } = await db
+    .from("transcripts")
+    .upsert(
+      {
+        call_id: call.id,
+        provider: transcription.provider,
+        model: transcription.model,
+        language: transcription.language,
+        language_probability: transcription.languageProbability,
+        full_text: transcription.fullText,
+        words_count: transcription.wordsCount,
+        raw: transcription.raw as Record<string, unknown>,
+      },
+      { onConflict: "call_id" },
+    )
+    .select("id")
     .single();
-  if (error || !call) throw new Error("Звонок не найден");
+  if (transcriptError || !transcriptRow) {
+    throw new Error(`Не удалось сохранить транскрипцию: ${transcriptError?.message}`);
+  }
 
-  const managerName =
-    (call.managers as { full_name?: string } | null)?.full_name ?? null;
+  await db.from("transcript_segments").delete().eq("call_id", call.id);
+  if (transcription.segments.length > 0) {
+    await db.from("transcript_segments").insert(
+      transcription.segments.map((segment) => ({
+        transcript_id: transcriptRow.id as string,
+        call_id: call.id,
+        idx: segment.idx,
+        speaker: segment.speaker,
+        speaker_role: null,
+        start_ms: segment.start_ms,
+        end_ms: segment.end_ms,
+        text: segment.text,
+      })),
+    );
+  }
 
+  await setStatus(db, call.id, "transcribed", {
+    language: transcription.language,
+    ...(transcription.durationSeconds != null
+      ? { duration_seconds: transcription.durationSeconds }
+      : {}),
+  });
+
+  return {
+    provider: transcription.provider,
+    model: transcription.model,
+    details: {
+      words: transcription.wordsCount,
+      language: transcription.language,
+      segments: transcription.segments.length,
+    },
+  };
+}
+
+async function runAnalysis(db: SupabaseClient, call: CallRow) {
+  const { data: transcript } = await db
+    .from("transcripts")
+    .select("full_text")
+    .eq("call_id", call.id)
+    .maybeSingle();
+  const segments = await loadSegments(db, call.id);
+  const fullText = (transcript?.full_text as string | undefined) ?? "";
+  if (!fullText.trim() && segments.length === 0) {
+    throw new Error("Транскрипция отсутствует — сначала перезапустите этап транскрибации");
+  }
+
+  const { analysis, provider, model, raw } = await analyzeTranscript(db, {
+    segments,
+    fullText,
+    managerName: call.managers?.full_name ?? null,
+    clientName: call.client_name,
+  });
+
+  const outcome = await persistAnalysis(
+    db,
+    call.id,
+    call.manager_id,
+    analysis,
+    provider,
+    model,
+    raw,
+  );
+
+  const managerSpeaker = analysis.manager_speaker ?? null;
+  if (managerSpeaker) {
+    await db
+      .from("transcript_segments")
+      .update({ speaker_role: "manager" })
+      .eq("call_id", call.id)
+      .eq("speaker", managerSpeaker);
+    await db
+      .from("transcript_segments")
+      .update({ speaker_role: "client" })
+      .eq("call_id", call.id)
+      .neq("speaker", managerSpeaker);
+  }
+
+  await setStatus(db, call.id, "analyzing", {
+    outcome,
+    summary: analysis.summary ?? null,
+    client_type: analysis.client?.client_type ?? null,
+    error_message: null,
+  });
+
+  return {
+    provider,
+    model,
+    details: { outcome, confidence: analysis.confidence ?? null },
+  };
+}
+
+async function runKnowledge(db: SupabaseClient, call: CallRow) {
+  const stored = await loadStoredAnalysis(db, call.id);
+  if (!stored) throw new Error("Нет результата анализа — сначала перезапустите этап AI-анализа");
+  const segments = await loadSegments(db, call.id);
+  const segmentsWithRoles = segments.map((segment) => ({
+    ...segment,
+    speaker_role: segment.speaker_role ?? segment.speaker,
+  }));
+  const chunks = buildChunks(stored.analysis, segmentsWithRoles, {
+    managerName: call.managers?.full_name ?? null,
+    callDate: call.call_date ?? new Date().toISOString(),
+    outcome: stored.outcome,
+  });
+  const count = await replaceChunks(db, call.id, chunks, {
+    manager_id: call.manager_id,
+    manager_name: call.managers?.full_name ?? null,
+    outcome: stored.outcome,
+    call_date: call.call_date,
+  });
+  return { provider: stored.provider, model: stored.model, details: { chunks: count } };
+}
+
+async function runEmbedding(db: SupabaseClient, call: CallRow) {
+  const result = await embedPendingChunks(db, call.id);
+  if (result.total === 0) {
+    throw new Error("Нет чанков знаний — сначала перезапустите этап извлечения знаний");
+  }
+  return { model: result.model, details: { embedded: result.embedded, total: result.total } };
+}
+
+async function runPatterns(db: SupabaseClient, call: CallRow) {
+  const summary = await refreshAggregates(db);
+  const { count } = await db
+    .from("call_patterns")
+    .select("id", { count: "exact", head: true })
+    .eq("call_id", call.id);
+  return { details: { call_patterns: count ?? 0, ...summary } };
+}
+
+const STAGE_RUNNERS: Record<
+  PipelineStage,
+  (db: SupabaseClient, call: CallRow) => Promise<{
+    provider?: string | null;
+    model?: string | null;
+    details?: Record<string, unknown>;
+  }>
+> = {
+  transcription: runTranscription,
+  analysis: runAnalysis,
+  knowledge: runKnowledge,
+  embedding: runEmbedding,
+  patterns: runPatterns,
+};
+
+export type PipelineOptions = {
+  /** Subset of stages to run. Defaults to the whole pipeline. */
+  stages?: PipelineStage[];
+  /** Re-run stages that already succeeded. */
+  force?: boolean;
+  maxAttempts?: number;
+};
+
+/**
+ * Runs the pipeline for one call. Succeeded stages are skipped unless forced,
+ * so a failed stage can be retried in isolation. A single-flight lock prevents
+ * two concurrent runs for the same call.
+ */
+export async function processCallPipeline(
+  db: SupabaseClient,
+  callId: string,
+  options: PipelineOptions = {},
+) {
+  const requested = options.stages?.length
+    ? PIPELINE_STAGES.filter((stage) => options.stages!.includes(stage))
+    : PIPELINE_STAGES;
+
+  const lockKey = `call:${callId}`;
+  const locked = await acquireLock(db, lockKey);
+  if (!locked) throw new Error("Обработка этого звонка уже выполняется");
+
+  const outcomes: StageOutcome[] = [];
   try {
+    const call = await loadCall(db, callId);
     await setStatus(db, callId, "processing", { error_message: null });
 
-    // 1. transcription
-    const transcribeJob = await startJob(db, callId, "transcription");
-    await setStatus(db, callId, "transcribing");
-    const download = await db.storage
-      .from("call-audio")
-      .download(call.storage_path as string);
-    if (download.error || !download.data) {
-      throw new Error(`Не удалось получить аудио из хранилища: ${download.error?.message}`);
-    }
-    const transcription = await transcribeAudio(db, download.data, call.file_name as string);
-    await finishJob(db, transcribeJob, {
-      status: "succeeded",
-      provider: transcription.provider,
-      model: transcription.model,
-      details: { words: transcription.wordsCount, language: transcription.language },
-    });
-
-    const { data: transcriptRow, error: transcriptError } = await db
-      .from("transcripts")
-      .upsert(
+    for (const stage of requested) {
+      await setStatus(db, callId, STAGE_STATUS[stage]);
+      const { outcome } = await runStage(
+        db,
+        callId,
+        stage,
+        async () => STAGE_RUNNERS[stage](db, call),
         {
-          call_id: callId,
-          provider: transcription.provider,
-          model: transcription.model,
-          language: transcription.language,
-          language_probability: transcription.languageProbability,
-          full_text: transcription.fullText,
-          words_count: transcription.wordsCount,
-          raw: transcription.raw as Record<string, unknown>,
+          ...(options.force === undefined ? {} : { force: options.force }),
+          ...(options.maxAttempts === undefined ? {} : { maxAttempts: options.maxAttempts }),
         },
-        { onConflict: "call_id" },
-      )
-      .select("id")
-      .single();
-    if (transcriptError || !transcriptRow) {
-      throw new Error(`Не удалось сохранить транскрипцию: ${transcriptError?.message}`);
-    }
-
-    await db.from("transcript_segments").delete().eq("call_id", callId);
-    if (transcription.segments.length > 0) {
-      await db.from("transcript_segments").insert(
-        transcription.segments.map((segment) => ({
-          transcript_id: transcriptRow.id as string,
-          call_id: callId,
-          idx: segment.idx,
-          speaker: segment.speaker,
-          speaker_role: null,
-          start_ms: segment.start_ms,
-          end_ms: segment.end_ms,
-          text: segment.text,
-        })),
       );
+      outcomes.push(outcome);
     }
-    await setStatus(db, callId, "transcribed", { language: transcription.language });
 
-    // 2. analysis
-    const analysisJob = await startJob(db, callId, "analysis");
-    await setStatus(db, callId, "analyzing");
-    const { analysis, provider, model, raw } = await analyzeTranscript(db, {
-      segments: transcription.segments,
-      fullText: transcription.fullText,
-      managerName,
-      clientName: (call.client_name as string | null) ?? null,
-    });
-    await finishJob(db, analysisJob, { status: "succeeded", provider, model });
-
-    const outcome = await persistAnalysis(
-      db,
-      callId,
-      (call.manager_id as string | null) ?? null,
-      analysis,
-      provider,
-      model,
-      raw,
+    const { data: allJobs } = await db
+      .from("ai_processing_jobs")
+      .select("stage, status")
+      .eq("call_id", callId);
+    const succeeded = new Set(
+      (allJobs ?? [])
+        .filter((job) => job.status === "succeeded")
+        .map((job) => job.stage as string),
     );
+    const complete = PIPELINE_STAGES.every((stage) => succeeded.has(stage));
 
-    // speaker roles
-    const managerSpeaker = analysis.manager_speaker ?? null;
-    if (managerSpeaker) {
-      await db
-        .from("transcript_segments")
-        .update({ speaker_role: "manager" })
-        .eq("call_id", callId)
-        .eq("speaker", managerSpeaker);
-      await db
-        .from("transcript_segments")
-        .update({ speaker_role: "client" })
-        .eq("call_id", callId)
-        .neq("speaker", managerSpeaker);
+    const { data: analysisRow } = await db
+      .from("call_analyses")
+      .select("outcome, summary")
+      .eq("call_id", callId)
+      .maybeSingle();
+
+    if (complete) {
+      await setStatus(db, callId, "completed", {
+        processed_at: new Date().toISOString(),
+        error_message: null,
+      });
     }
 
-    const segmentsWithRoles = transcription.segments.map((segment) => ({
-      ...segment,
-      speaker_role:
-        managerSpeaker == null
-          ? segment.speaker
-          : segment.speaker === managerSpeaker
-            ? "менеджер"
-            : "клиент",
-    }));
-
-    // 3. knowledge + embeddings
-    const knowledgeJob = await startJob(db, callId, "knowledge");
-    const chunks = buildChunks(analysis, segmentsWithRoles, {
-      managerName,
-      callDate: (call.call_date as string) ?? new Date().toISOString(),
-      outcome,
-    });
-    const indexed = await indexKnowledge(db, callId, chunks, {
-      manager_id: call.manager_id,
-      manager_name: managerName,
-      outcome,
-      call_date: call.call_date,
-    });
-    await finishJob(db, knowledgeJob, { status: "succeeded", details: { chunks: indexed } });
-
-    await setStatus(db, callId, "completed", {
-      outcome,
-      summary: analysis.summary ?? null,
-      client_type: analysis.client?.client_type ?? null,
-      processed_at: new Date().toISOString(),
-      error_message: null,
-    });
-
-    await refreshAggregates(db);
-    return { ok: true as const, outcome, chunks: indexed };
+    return {
+      ok: true as const,
+      complete,
+      outcome: (analysisRow?.outcome as string | null) ?? "unknown",
+      summary: (analysisRow?.summary as string | null) ?? null,
+      stages: outcomes,
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    await db
-      .from("ai_processing_jobs")
-      .update({ status: "failed", error: message.slice(0, 800), finished_at: new Date().toISOString() })
-      .eq("call_id", callId)
-      .eq("status", "running");
     await setStatus(db, callId, "failed", { error_message: message.slice(0, 800) });
     throw new Error(message);
+  } finally {
+    await releaseLock(db, lockKey);
   }
+}
+
+/** Retries a single failed stage (and, optionally, everything after it). */
+export async function retryStage(
+  db: SupabaseClient,
+  callId: string,
+  stage: PipelineStage,
+  options: { continueAfter?: boolean } = {},
+) {
+  const index = PIPELINE_STAGES.indexOf(stage);
+  const stages = options.continueAfter ? PIPELINE_STAGES.slice(index) : [stage];
+  return processCallPipeline(db, callId, { stages, force: true });
 }
 
 /** Recomputes objection and pattern statistics across the whole database. */
@@ -598,6 +796,7 @@ export async function refreshAggregates(db: SupabaseClient) {
   }
 
   const { data: patterns } = await db.from("patterns").select("id");
+  let confirmed = 0;
   for (const pattern of patterns ?? []) {
     const { data: links } = await db
       .from("call_patterns")
@@ -608,6 +807,8 @@ export async function refreshAggregates(db: SupabaseClient) {
       ["sale", "loss"].includes((r.calls as { outcome?: string } | null)?.outcome ?? ""),
     );
     const wins = rows.filter((r) => (r.calls as { outcome?: string } | null)?.outcome === "sale");
+    const isConfirmed = rows.length >= PATTERN_MIN_CONFIRMATIONS;
+    if (isConfirmed) confirmed += 1;
     await db
       .from("patterns")
       .update({
@@ -616,8 +817,9 @@ export async function refreshAggregates(db: SupabaseClient) {
         success_rate: decided.length > 0 ? wins.length / decided.length : null,
         confidence: Math.min(0.95, 0.35 + rows.length * 0.1),
         // a pattern only becomes a real pattern once enough independent calls confirm it
-        status: rows.length >= PATTERN_MIN_CONFIRMATIONS ? "confirmed" : "candidate",
+        status: isConfirmed ? "confirmed" : "candidate",
       })
       .eq("id", pattern.id as string);
   }
+  return { patterns_total: (patterns ?? []).length, patterns_confirmed: confirmed };
 }
