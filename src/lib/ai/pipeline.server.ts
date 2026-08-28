@@ -151,7 +151,8 @@ async function persistAnalysis(
       sale_reason: call.sale_reason ?? list(call.sale_reasons)[0] ?? null,
       loss_reason: call.loss_reason ?? list(call.loss_reasons)[0] ?? null,
       confidence: analysis.confidence ?? null,
-      raw: { raw_response: raw.slice(0, 20000) },
+      // the parsed analysis is kept so the knowledge stage can be retried alone
+      raw: { raw_response: raw.slice(0, 20000), analysis },
     },
     { onConflict: "call_id" },
   );
