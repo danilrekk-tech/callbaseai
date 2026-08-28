@@ -23,11 +23,13 @@ export type Database = {
           finished_at: string | null
           id: string
           latency_ms: number | null
+          max_attempts: number
           model: string | null
           provider: string | null
           stage: string
           started_at: string
           status: string
+          updated_at: string
         }
         Insert: {
           attempts?: number
@@ -37,11 +39,13 @@ export type Database = {
           finished_at?: string | null
           id?: string
           latency_ms?: number | null
+          max_attempts?: number
           model?: string | null
           provider?: string | null
           stage: string
           started_at?: string
           status?: string
+          updated_at?: string
         }
         Update: {
           attempts?: number
@@ -51,11 +55,13 @@ export type Database = {
           finished_at?: string | null
           id?: string
           latency_ms?: number | null
+          max_attempts?: number
           model?: string | null
           provider?: string | null
           stage?: string
           started_at?: string
           status?: string
+          updated_at?: string
         }
         Relationships: [
           {
@@ -75,6 +81,7 @@ export type Database = {
           enabled: boolean
           error_count: number
           id: string
+          is_primary: boolean
           kind: string
           last_error: string | null
           last_error_at: string | null
@@ -96,6 +103,7 @@ export type Database = {
           enabled?: boolean
           error_count?: number
           id?: string
+          is_primary?: boolean
           kind: string
           last_error?: string | null
           last_error_at?: string | null
@@ -117,6 +125,7 @@ export type Database = {
           enabled?: boolean
           error_count?: number
           id?: string
+          is_primary?: boolean
           kind?: string
           last_error?: string | null
           last_error_at?: string | null
@@ -133,6 +142,56 @@ export type Database = {
         }
         Relationships: []
       }
+      api_audit_logs: {
+        Row: {
+          api_key_id: string | null
+          created_at: string
+          duration_ms: number | null
+          error: string | null
+          id: string
+          ip: string | null
+          key_prefix: string | null
+          method: string
+          path: string
+          status_code: number
+          user_agent: string | null
+        }
+        Insert: {
+          api_key_id?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error?: string | null
+          id?: string
+          ip?: string | null
+          key_prefix?: string | null
+          method: string
+          path: string
+          status_code: number
+          user_agent?: string | null
+        }
+        Update: {
+          api_key_id?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error?: string | null
+          id?: string
+          ip?: string | null
+          key_prefix?: string | null
+          method?: string
+          path?: string
+          status_code?: number
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_audit_logs_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "api_keys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       api_keys: {
         Row: {
           created_at: string
@@ -142,8 +201,10 @@ export type Database = {
           key_prefix: string
           last_used_at: string | null
           name: string
+          rate_limit_per_minute: number
           request_count: number
           revoked: boolean
+          scopes: string[]
         }
         Insert: {
           created_at?: string
@@ -153,8 +214,10 @@ export type Database = {
           key_prefix: string
           last_used_at?: string | null
           name: string
+          rate_limit_per_minute?: number
           request_count?: number
           revoked?: boolean
+          scopes?: string[]
         }
         Update: {
           created_at?: string
@@ -164,8 +227,10 @@ export type Database = {
           key_prefix?: string
           last_used_at?: string | null
           name?: string
+          rate_limit_per_minute?: number
           request_count?: number
           revoked?: boolean
+          scopes?: string[]
         }
         Relationships: []
       }
@@ -820,6 +885,27 @@ export type Database = {
           success_count?: number
           success_rate?: number | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      processing_locks: {
+        Row: {
+          created_at: string
+          expires_at: string
+          holder: string | null
+          lock_key: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          holder?: string | null
+          lock_key: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          holder?: string | null
+          lock_key?: string
         }
         Relationships: []
       }
