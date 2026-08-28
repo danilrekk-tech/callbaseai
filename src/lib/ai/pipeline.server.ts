@@ -1,14 +1,21 @@
-// Full processing pipeline:
+// Full processing pipeline, split into independent retryable stages:
 // storage audio -> transcription -> structured analysis -> knowledge extraction
-// -> embeddings -> pgvector. Every stage is journaled in ai_processing_jobs and
-// reflected in calls.status.
+// -> embeddings -> pattern detection. Every stage is journaled in
+// ai_processing_jobs and reflected in calls.status.
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { analyzeTranscript } from "./analysis.server";
+import { acquireLock, releaseLock, runStage } from "./jobs.server";
 import { createEmbeddings } from "./registry.server";
 import { transcribeAudio } from "./transcription.server";
-import { PATTERN_MIN_CONFIRMATIONS } from "./types";
-import type { AnalysisResult, CallStatus, TranscriptSegmentInput } from "./types";
+import { PATTERN_MIN_CONFIRMATIONS, PIPELINE_STAGES } from "./types";
+import type {
+  AnalysisResult,
+  CallStatus,
+  PipelineStage,
+  TranscriptSegmentInput,
+} from "./types";
+import type { StageOutcome } from "./jobs.server";
 
 async function setStatus(
   db: SupabaseClient,
