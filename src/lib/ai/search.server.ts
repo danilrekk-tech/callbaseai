@@ -99,6 +99,7 @@ export async function semanticSearch(
 
 export type AskResult = {
   answer: string;
+  confidence: number;
   provider: string;
   model: string;
   sources: {
@@ -112,7 +113,88 @@ export type AskResult = {
     call_date: string | null;
     excerpt: string;
   }[];
+  related_calls: CallRef[];
+  patterns: {
+    id: string;
+    name: string;
+    description: string | null;
+    status: string;
+    confirmations: number;
+    confidence: number | null;
+    success_rate: number | null;
+  }[];
+  objections: {
+    id: string;
+    title: string;
+    category: string | null;
+    occurrences: number;
+    handled_count: number;
+  }[];
+  recommendations: string[];
 };
+
+/** Collects the structured context (patterns, objections, recommendations)
+ *  behind the calls that produced the retrieved chunks. */
+async function loadAnswerContext(db: SupabaseClient, callIds: string[]) {
+  if (callIds.length === 0) {
+    return { patterns: [], objections: [], recommendations: [] as string[] };
+  }
+  const [patternLinks, objectionLinks, analyses] = await Promise.all([
+    db
+      .from("call_patterns")
+      .select(
+        "pattern_id, patterns(id, name, description, status, confirmations, confidence, success_rate)",
+      )
+      .in("call_id", callIds),
+    db
+      .from("call_objections")
+      .select("objection_id, objections(id, title, category, occurrences, handled_count)")
+      .in("call_id", callIds),
+    db.from("call_analyses").select("recommendations").in("call_id", callIds),
+  ]);
+
+  const patternMap = new Map<string, AskResult["patterns"][number]>();
+  for (const row of (patternLinks.data ?? []) as Record<string, unknown>[]) {
+    const pattern = row["patterns"] as Record<string, unknown> | null;
+    if (!pattern) continue;
+    patternMap.set(pattern["id"] as string, {
+      id: pattern["id"] as string,
+      name: pattern["name"] as string,
+      description: (pattern["description"] as string | null) ?? null,
+      status: (pattern["status"] as string | null) ?? "candidate",
+      confirmations: (pattern["confirmations"] as number | null) ?? 0,
+      confidence: (pattern["confidence"] as number | null) ?? null,
+      success_rate: (pattern["success_rate"] as number | null) ?? null,
+    });
+  }
+
+  const objectionMap = new Map<string, AskResult["objections"][number]>();
+  for (const row of (objectionLinks.data ?? []) as Record<string, unknown>[]) {
+    const objection = row["objections"] as Record<string, unknown> | null;
+    if (!objection) continue;
+    objectionMap.set(objection["id"] as string, {
+      id: objection["id"] as string,
+      title: objection["title"] as string,
+      category: (objection["category"] as string | null) ?? null,
+      occurrences: (objection["occurrences"] as number | null) ?? 0,
+      handled_count: (objection["handled_count"] as number | null) ?? 0,
+    });
+  }
+
+  const recommendations = [
+    ...new Set(
+      ((analyses.data ?? []) as { recommendations?: string[] | null }[]).flatMap(
+        (row) => row.recommendations ?? [],
+      ),
+    ),
+  ].slice(0, 12);
+
+  return {
+    patterns: [...patternMap.values()].sort((a, b) => b.confirmations - a.confirmations),
+    objections: [...objectionMap.values()].sort((a, b) => b.occurrences - a.occurrences),
+    recommendations,
+  };
+}
 
 export async function askKnowledgeBase(
   db: SupabaseClient,
