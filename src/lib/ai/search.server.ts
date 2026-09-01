@@ -207,11 +207,34 @@ export async function askKnowledgeBase(
     return {
       answer:
         "В базе знаний нет данных под этот запрос и фильтры. Загрузите звонки, дождитесь обработки или ослабьте фильтры.",
+      confidence: 0,
       provider: "-",
       model: "-",
       sources: [],
+      related_calls: [],
+      patterns: [],
+      objections: [],
+      recommendations: [],
     };
   }
+
+  const callIds = [...new Set(matches.map((m) => m.call_id).filter(Boolean) as string[])];
+  const extra = await loadAnswerContext(db, callIds);
+  const relatedCalls = [
+    ...new Map(
+      matches
+        .map((match) => match.call)
+        .filter((call): call is CallRef => Boolean(call))
+        .map((call) => [call.call_id, call]),
+    ).values(),
+  ];
+  const avgSimilarity =
+    matches.reduce((sum, match) => sum + match.similarity, 0) / Math.max(matches.length, 1);
+  // Confidence blends retrieval quality with how much independent evidence backs the answer.
+  const confidence = Math.max(
+    0,
+    Math.min(0.99, avgSimilarity * 0.8 + Math.min(relatedCalls.length, 5) * 0.04),
+  );
 
   const context = matches
     .map(
