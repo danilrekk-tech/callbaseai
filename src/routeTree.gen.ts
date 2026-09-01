@@ -25,6 +25,9 @@ import { Route as AuthenticatedCallsIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedCallsCallIdRouteImport } from './routes/_authenticated/calls.$callId'
 import { Route as ApiPublicV1AskRouteImport } from './routes/api/public/v1/ask'
 import { Route as ApiPublicV1CallsRouteImport } from './routes/api/public/v1/calls'
+import { Route as ApiPublicV1ManagersRouteImport } from './routes/api/public/v1/managers'
+import { Route as ApiPublicV1ObjectionsRouteImport } from './routes/api/public/v1/objections'
+import { Route as ApiPublicV1PatternsRouteImport } from './routes/api/public/v1/patterns'
 import { Route as ApiPublicV1SearchRouteImport } from './routes/api/public/v1/search'
 import { Route as ApiPublicV1StatsRouteImport } from './routes/api/public/v1/stats'
 import { Route as ApiPublicV1CallsIdRouteImport } from './routes/api/public/v1/calls.$id'
@@ -110,6 +113,21 @@ const ApiPublicV1CallsRoute = ApiPublicV1CallsRouteImport.update({
   path: '/api/public/v1/calls',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicV1ManagersRoute = ApiPublicV1ManagersRouteImport.update({
+  id: '/api/public/v1/managers',
+  path: '/api/public/v1/managers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicV1ObjectionsRoute = ApiPublicV1ObjectionsRouteImport.update({
+  id: '/api/public/v1/objections',
+  path: '/api/public/v1/objections',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicV1PatternsRoute = ApiPublicV1PatternsRouteImport.update({
+  id: '/api/public/v1/patterns',
+  path: '/api/public/v1/patterns',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicV1SearchRoute = ApiPublicV1SearchRouteImport.update({
   id: '/api/public/v1/search',
   path: '/api/public/v1/search',
@@ -142,6 +160,9 @@ export interface FileRoutesByFullPath {
   '/calls/': typeof AuthenticatedCallsIndexRoute
   '/api/public/v1/ask': typeof ApiPublicV1AskRoute
   '/api/public/v1/calls': typeof ApiPublicV1CallsRouteWithChildren
+  '/api/public/v1/managers': typeof ApiPublicV1ManagersRoute
+  '/api/public/v1/objections': typeof ApiPublicV1ObjectionsRoute
+  '/api/public/v1/patterns': typeof ApiPublicV1PatternsRoute
   '/api/public/v1/search': typeof ApiPublicV1SearchRoute
   '/api/public/v1/stats': typeof ApiPublicV1StatsRoute
   '/api/public/v1/calls/$id': typeof ApiPublicV1CallsIdRoute
@@ -162,6 +183,9 @@ export interface FileRoutesByTo {
   '/calls': typeof AuthenticatedCallsIndexRoute
   '/api/public/v1/ask': typeof ApiPublicV1AskRoute
   '/api/public/v1/calls': typeof ApiPublicV1CallsRouteWithChildren
+  '/api/public/v1/managers': typeof ApiPublicV1ManagersRoute
+  '/api/public/v1/objections': typeof ApiPublicV1ObjectionsRoute
+  '/api/public/v1/patterns': typeof ApiPublicV1PatternsRoute
   '/api/public/v1/search': typeof ApiPublicV1SearchRoute
   '/api/public/v1/stats': typeof ApiPublicV1StatsRoute
   '/api/public/v1/calls/$id': typeof ApiPublicV1CallsIdRoute
@@ -184,6 +208,9 @@ export interface FileRoutesById {
   '/_authenticated/calls/': typeof AuthenticatedCallsIndexRoute
   '/api/public/v1/ask': typeof ApiPublicV1AskRoute
   '/api/public/v1/calls': typeof ApiPublicV1CallsRouteWithChildren
+  '/api/public/v1/managers': typeof ApiPublicV1ManagersRoute
+  '/api/public/v1/objections': typeof ApiPublicV1ObjectionsRoute
+  '/api/public/v1/patterns': typeof ApiPublicV1PatternsRoute
   '/api/public/v1/search': typeof ApiPublicV1SearchRoute
   '/api/public/v1/stats': typeof ApiPublicV1StatsRoute
   '/api/public/v1/calls/$id': typeof ApiPublicV1CallsIdRoute
@@ -206,6 +233,9 @@ export interface FileRouteTypes {
     | '/calls/'
     | '/api/public/v1/ask'
     | '/api/public/v1/calls'
+    | '/api/public/v1/managers'
+    | '/api/public/v1/objections'
+    | '/api/public/v1/patterns'
     | '/api/public/v1/search'
     | '/api/public/v1/stats'
     | '/api/public/v1/calls/$id'
@@ -226,6 +256,9 @@ export interface FileRouteTypes {
     | '/calls'
     | '/api/public/v1/ask'
     | '/api/public/v1/calls'
+    | '/api/public/v1/managers'
+    | '/api/public/v1/objections'
+    | '/api/public/v1/patterns'
     | '/api/public/v1/search'
     | '/api/public/v1/stats'
     | '/api/public/v1/calls/$id'
@@ -247,6 +280,9 @@ export interface FileRouteTypes {
     | '/_authenticated/calls/'
     | '/api/public/v1/ask'
     | '/api/public/v1/calls'
+    | '/api/public/v1/managers'
+    | '/api/public/v1/objections'
+    | '/api/public/v1/patterns'
     | '/api/public/v1/search'
     | '/api/public/v1/stats'
     | '/api/public/v1/calls/$id'
@@ -258,6 +294,9 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ApiPublicV1AskRoute: typeof ApiPublicV1AskRoute
   ApiPublicV1CallsRoute: typeof ApiPublicV1CallsRouteWithChildren
+  ApiPublicV1ManagersRoute: typeof ApiPublicV1ManagersRoute
+  ApiPublicV1ObjectionsRoute: typeof ApiPublicV1ObjectionsRoute
+  ApiPublicV1PatternsRoute: typeof ApiPublicV1PatternsRoute
   ApiPublicV1SearchRoute: typeof ApiPublicV1SearchRoute
   ApiPublicV1StatsRoute: typeof ApiPublicV1StatsRoute
 }
@@ -376,6 +415,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicV1CallsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/v1/managers': {
+      id: '/api/public/v1/managers'
+      path: '/api/public/v1/managers'
+      fullPath: '/api/public/v1/managers'
+      preLoaderRoute: typeof ApiPublicV1ManagersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/v1/objections': {
+      id: '/api/public/v1/objections'
+      path: '/api/public/v1/objections'
+      fullPath: '/api/public/v1/objections'
+      preLoaderRoute: typeof ApiPublicV1ObjectionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/v1/patterns': {
+      id: '/api/public/v1/patterns'
+      path: '/api/public/v1/patterns'
+      fullPath: '/api/public/v1/patterns'
+      preLoaderRoute: typeof ApiPublicV1PatternsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/v1/search': {
       id: '/api/public/v1/search'
       path: '/api/public/v1/search'
@@ -448,6 +508,9 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ApiPublicV1AskRoute: ApiPublicV1AskRoute,
   ApiPublicV1CallsRoute: ApiPublicV1CallsRouteWithChildren,
+  ApiPublicV1ManagersRoute: ApiPublicV1ManagersRoute,
+  ApiPublicV1ObjectionsRoute: ApiPublicV1ObjectionsRoute,
+  ApiPublicV1PatternsRoute: ApiPublicV1PatternsRoute,
   ApiPublicV1SearchRoute: ApiPublicV1SearchRoute,
   ApiPublicV1StatsRoute: ApiPublicV1StatsRoute,
 }

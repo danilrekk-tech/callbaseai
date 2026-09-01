@@ -99,6 +99,7 @@ export async function semanticSearch(
 
 export type AskResult = {
   answer: string;
+  confidence: number;
   provider: string;
   model: string;
   sources: {
@@ -112,7 +113,88 @@ export type AskResult = {
     call_date: string | null;
     excerpt: string;
   }[];
+  related_calls: CallRef[];
+  patterns: {
+    id: string;
+    name: string;
+    description: string | null;
+    status: string;
+    confirmations: number;
+    confidence: number | null;
+    success_rate: number | null;
+  }[];
+  objections: {
+    id: string;
+    title: string;
+    category: string | null;
+    occurrences: number;
+    handled_count: number;
+  }[];
+  recommendations: string[];
 };
+
+/** Collects the structured context (patterns, objections, recommendations)
+ *  behind the calls that produced the retrieved chunks. */
+async function loadAnswerContext(db: SupabaseClient, callIds: string[]) {
+  if (callIds.length === 0) {
+    return { patterns: [], objections: [], recommendations: [] as string[] };
+  }
+  const [patternLinks, objectionLinks, analyses] = await Promise.all([
+    db
+      .from("call_patterns")
+      .select(
+        "pattern_id, patterns(id, name, description, status, confirmations, confidence, success_rate)",
+      )
+      .in("call_id", callIds),
+    db
+      .from("call_objections")
+      .select("objection_id, objections(id, title, category, occurrences, handled_count)")
+      .in("call_id", callIds),
+    db.from("call_analyses").select("recommendations").in("call_id", callIds),
+  ]);
+
+  const patternMap = new Map<string, AskResult["patterns"][number]>();
+  for (const row of (patternLinks.data ?? []) as Record<string, unknown>[]) {
+    const pattern = row["patterns"] as Record<string, unknown> | null;
+    if (!pattern) continue;
+    patternMap.set(pattern["id"] as string, {
+      id: pattern["id"] as string,
+      name: pattern["name"] as string,
+      description: (pattern["description"] as string | null) ?? null,
+      status: (pattern["status"] as string | null) ?? "candidate",
+      confirmations: (pattern["confirmations"] as number | null) ?? 0,
+      confidence: (pattern["confidence"] as number | null) ?? null,
+      success_rate: (pattern["success_rate"] as number | null) ?? null,
+    });
+  }
+
+  const objectionMap = new Map<string, AskResult["objections"][number]>();
+  for (const row of (objectionLinks.data ?? []) as Record<string, unknown>[]) {
+    const objection = row["objections"] as Record<string, unknown> | null;
+    if (!objection) continue;
+    objectionMap.set(objection["id"] as string, {
+      id: objection["id"] as string,
+      title: objection["title"] as string,
+      category: (objection["category"] as string | null) ?? null,
+      occurrences: (objection["occurrences"] as number | null) ?? 0,
+      handled_count: (objection["handled_count"] as number | null) ?? 0,
+    });
+  }
+
+  const recommendations = [
+    ...new Set(
+      ((analyses.data ?? []) as { recommendations?: string[] | null }[]).flatMap(
+        (row) => row.recommendations ?? [],
+      ),
+    ),
+  ].slice(0, 12);
+
+  return {
+    patterns: [...patternMap.values()].sort((a, b) => b.confirmations - a.confirmations),
+    objections: [...objectionMap.values()].sort((a, b) => b.occurrences - a.occurrences),
+    recommendations,
+  };
+}
 
 export async function askKnowledgeBase(
   db: SupabaseClient,
@@ -125,11 +207,34 @@ export async function askKnowledgeBase(
     return {
       answer:
         "В базе знаний нет данных под этот запрос и фильтры. Загрузите звонки, дождитесь обработки или ослабьте фильтры.",
+      confidence: 0,
       provider: "-",
       model: "-",
       sources: [],
+      related_calls: [],
+      patterns: [],
+      objections: [],
+      recommendations: [],
     };
   }
+
+  const callIds = [...new Set(matches.map((m) => m.call_id).filter(Boolean) as string[])];
+  const extra = await loadAnswerContext(db, callIds);
+  const relatedCalls = [
+    ...new Map(
+      matches
+        .map((match) => match.call)
+        .filter((call): call is CallRef => Boolean(call))
+        .map((call) => [call.call_id, call]),
+    ).values(),
+  ];
+  const avgSimilarity =
+    matches.reduce((sum, match) => sum + match.similarity, 0) / Math.max(matches.length, 1);
+  // Confidence blends retrieval quality with how much independent evidence backs the answer.
+  const confidence = Math.max(
+    0,
+    Math.min(0.99, avgSimilarity * 0.8 + Math.min(relatedCalls.length, 5) * 0.04),
+  );
 
   const context = matches
     .map(
@@ -154,6 +259,7 @@ export async function askKnowledgeBase(
 
   return {
     answer: content.trim(),
+    confidence: Number(confidence.toFixed(3)),
     provider: provider.name,
     model: provider.model ?? "unknown",
     sources: matches.map((match) => ({
@@ -161,11 +267,16 @@ export async function askKnowledgeBase(
       title: match.title,
       source_type: match.source_type,
       similarity: match.similarity,
-      manager_name: match.call?.manager_name ?? (match.metadata?.["manager_name"] as string | null) ?? null,
+      manager_name:
+        match.call?.manager_name ?? (match.metadata?.["manager_name"] as string | null) ?? null,
       client_name: match.call?.client_name ?? null,
       outcome: match.call?.outcome ?? (match.metadata?.["outcome"] as string | null) ?? null,
       call_date: match.call?.call_date ?? null,
       excerpt: match.content.slice(0, 400),
     })),
+    related_calls: relatedCalls,
+    patterns: extra.patterns,
+    objections: extra.objections,
+    recommendations: extra.recommendations,
   };
 }
