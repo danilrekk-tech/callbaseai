@@ -259,6 +259,7 @@ export async function askKnowledgeBase(
 
   return {
     answer: content.trim(),
+    confidence: Number(confidence.toFixed(3)),
     provider: provider.name,
     model: provider.model ?? "unknown",
     sources: matches.map((match) => ({
@@ -266,11 +267,16 @@ export async function askKnowledgeBase(
       title: match.title,
       source_type: match.source_type,
       similarity: match.similarity,
-      manager_name: match.call?.manager_name ?? (match.metadata?.["manager_name"] as string | null) ?? null,
+      manager_name:
+        match.call?.manager_name ?? (match.metadata?.["manager_name"] as string | null) ?? null,
       client_name: match.call?.client_name ?? null,
       outcome: match.call?.outcome ?? (match.metadata?.["outcome"] as string | null) ?? null,
       call_date: match.call?.call_date ?? null,
       excerpt: match.content.slice(0, 400),
     })),
+    related_calls: relatedCalls,
+    patterns: extra.patterns,
+    objections: extra.objections,
+    recommendations: extra.recommendations,
   };
 }
