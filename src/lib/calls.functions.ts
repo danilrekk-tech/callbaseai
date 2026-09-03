@@ -2,6 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Json } from "@/integrations/supabase/types";
+import type { PipelineStage } from "./ai/types";
 
 export type CallsFilter = {
   search?: string | undefined;
@@ -148,7 +150,48 @@ export const processCall = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { processCallPipeline } = await import("./ai/pipeline.server");
     const result = await processCallPipeline(supabaseAdmin as unknown as SupabaseClient, data.id);
-    return result;
+    return {
+      ok: result.ok,
+      complete: result.complete,
+      outcome: result.outcome,
+      summary: result.summary,
+      stages: result.stages.map(({ stage, status, attempts, durationMs, provider, model, error }) => ({
+        stage,
+        status,
+        attempts,
+        durationMs,
+        provider: provider ?? null,
+        model: model ?? null,
+        error: error ?? null,
+      })),
+    };
+  });
+
+export const retryCallStage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (input: { id: string; stage: PipelineStage; continueAfter?: boolean }) => input,
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { retryStage } = await import("./ai/pipeline.server");
+    const result = await retryStage(supabaseAdmin as unknown as SupabaseClient, data.id, data.stage, {
+      continueAfter: data.continueAfter ?? false,
+    });
+    return {
+      ok: result.ok,
+      complete: result.complete,
+      outcome: result.outcome,
+      stages: result.stages.map(({ stage, status, attempts, durationMs, provider, model, error }) => ({
+        stage,
+        status,
+        attempts,
+        durationMs,
+        provider: provider ?? null,
+        model: model ?? null,
+        error: error ?? null,
+      })),
+    };
   });
 
 export const deleteCall = createServerFn({ method: "POST" })
@@ -203,10 +246,10 @@ export const assignCallManager = createServerFn({ method: "POST" })
       .select("id, metadata")
       .eq("call_id", data.id);
     for (const chunk of chunks ?? []) {
-      const metadata = { ...(chunk.metadata as Record<string, unknown> | null) };
+      const metadata = { ...(chunk.metadata as Record<string, Json> | null) };
       metadata["manager_name"] = managerName;
       metadata["manager_id"] = data.managerId;
-      await db.from("knowledge_chunks").update({ metadata }).eq("id", chunk.id as string);
+      await db.from("knowledge_chunks").update({ metadata: metadata as Json }).eq("id", chunk.id as string);
     }
 
     return { ok: true, managerName };
