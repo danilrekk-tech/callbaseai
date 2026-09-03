@@ -220,6 +220,41 @@ export const listPatterns = createServerFn({ method: "POST" })
     return data ?? [];
   });
 
+export const getIntelligence = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const [patterns, insights, objections, calls] = await Promise.all([
+      context.supabase
+        .from("patterns")
+        .select("id, name, description, kind, outcome_link, confirmations, success_rate, confidence, status, updated_at, call_patterns(evidence, calls(id, client_name, call_date, outcome, managers(full_name)))")
+        .order("updated_at", { ascending: false })
+        .limit(30),
+      context.supabase
+        .from("insights")
+        .select("id, call_id, category, kind, statement, evidence, weight, created_at, calls(id, client_name, call_date)")
+        .order("created_at", { ascending: false })
+        .limit(40),
+      context.supabase
+        .from("objections")
+        .select("id, title, category, occurrences, handled_count, won_count")
+        .order("occurrences", { ascending: false })
+        .limit(8),
+      context.supabase.from("calls").select("id, outcome, status").limit(5000),
+    ]);
+    const callRows = calls.data ?? [];
+    return {
+      patterns: patterns.data ?? [],
+      insights: insights.data ?? [],
+      objections: objections.data ?? [],
+      coverage: {
+        total: callRows.length,
+        analyzed: callRows.filter((row) => row.status === "completed").length,
+        patterns: (patterns.data ?? []).filter((row) => row.status === "confirmed").length,
+        candidates: (patterns.data ?? []).filter((row) => row.status !== "confirmed").length,
+      },
+    };
+  });
+
 export const listObjections = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {

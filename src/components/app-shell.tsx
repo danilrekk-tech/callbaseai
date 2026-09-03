@@ -2,6 +2,7 @@ import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-route
 import {
   AudioLines,
   BrainCircuit,
+  Lightbulb,
   Database,
   LayoutDashboard,
   LogOut,
@@ -28,6 +29,7 @@ const nav = [
   { to: "/objections", label: "Возражения", icon: MessageSquareWarning },
   { to: "/knowledge", label: "База знаний", icon: Database },
   { to: "/search", label: "AI-поиск", icon: Search },
+  { to: "/intelligence", label: "AI Intelligence", icon: Lightbulb },
   { to: "/integrations", label: "Интеграции", icon: Plug },
   { to: "/api-docs", label: "API", icon: Terminal },
 ] as const;
