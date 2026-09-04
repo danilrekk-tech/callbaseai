@@ -15,6 +15,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedApiDocsRouteImport } from './routes/_authenticated/api-docs'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedIntegrationsRouteImport } from './routes/_authenticated/integrations'
+import { Route as AuthenticatedIntelligenceRouteImport } from './routes/_authenticated/intelligence'
 import { Route as AuthenticatedKnowledgeRouteImport } from './routes/_authenticated/knowledge'
 import { Route as AuthenticatedManagersRouteImport } from './routes/_authenticated/managers'
 import { Route as AuthenticatedObjectionsRouteImport } from './routes/_authenticated/objections'
@@ -60,6 +61,12 @@ const AuthenticatedIntegrationsRoute =
   AuthenticatedIntegrationsRouteImport.update({
     id: '/integrations',
     path: '/integrations',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedIntelligenceRoute =
+  AuthenticatedIntelligenceRouteImport.update({
+    id: '/intelligence',
+    path: '/intelligence',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedKnowledgeRoute = AuthenticatedKnowledgeRouteImport.update({
@@ -150,6 +157,7 @@ export interface FileRoutesByFullPath {
   '/api-docs': typeof AuthenticatedApiDocsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/integrations': typeof AuthenticatedIntegrationsRoute
+  '/intelligence': typeof AuthenticatedIntelligenceRoute
   '/knowledge': typeof AuthenticatedKnowledgeRoute
   '/managers': typeof AuthenticatedManagersRoute
   '/objections': typeof AuthenticatedObjectionsRoute
@@ -173,6 +181,7 @@ export interface FileRoutesByTo {
   '/api-docs': typeof AuthenticatedApiDocsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/integrations': typeof AuthenticatedIntegrationsRoute
+  '/intelligence': typeof AuthenticatedIntelligenceRoute
   '/knowledge': typeof AuthenticatedKnowledgeRoute
   '/managers': typeof AuthenticatedManagersRoute
   '/objections': typeof AuthenticatedObjectionsRoute
@@ -198,6 +207,7 @@ export interface FileRoutesById {
   '/_authenticated/api-docs': typeof AuthenticatedApiDocsRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/integrations': typeof AuthenticatedIntegrationsRoute
+  '/_authenticated/intelligence': typeof AuthenticatedIntelligenceRoute
   '/_authenticated/knowledge': typeof AuthenticatedKnowledgeRoute
   '/_authenticated/managers': typeof AuthenticatedManagersRoute
   '/_authenticated/objections': typeof AuthenticatedObjectionsRoute
@@ -223,6 +233,7 @@ export interface FileRouteTypes {
     | '/api-docs'
     | '/dashboard'
     | '/integrations'
+    | '/intelligence'
     | '/knowledge'
     | '/managers'
     | '/objections'
@@ -246,6 +257,7 @@ export interface FileRouteTypes {
     | '/api-docs'
     | '/dashboard'
     | '/integrations'
+    | '/intelligence'
     | '/knowledge'
     | '/managers'
     | '/objections'
@@ -270,6 +282,7 @@ export interface FileRouteTypes {
     | '/_authenticated/api-docs'
     | '/_authenticated/dashboard'
     | '/_authenticated/integrations'
+    | '/_authenticated/intelligence'
     | '/_authenticated/knowledge'
     | '/_authenticated/managers'
     | '/_authenticated/objections'
@@ -343,6 +356,13 @@ declare module '@tanstack/react-router' {
       path: '/integrations'
       fullPath: '/integrations'
       preLoaderRoute: typeof AuthenticatedIntegrationsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/intelligence': {
+      id: '/_authenticated/intelligence'
+      path: '/intelligence'
+      fullPath: '/intelligence'
+      preLoaderRoute: typeof AuthenticatedIntelligenceRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/knowledge': {
@@ -464,6 +484,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedApiDocsRoute: typeof AuthenticatedApiDocsRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedIntegrationsRoute: typeof AuthenticatedIntegrationsRoute
+  AuthenticatedIntelligenceRoute: typeof AuthenticatedIntelligenceRoute
   AuthenticatedKnowledgeRoute: typeof AuthenticatedKnowledgeRoute
   AuthenticatedManagersRoute: typeof AuthenticatedManagersRoute
   AuthenticatedObjectionsRoute: typeof AuthenticatedObjectionsRoute
@@ -478,6 +499,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedApiDocsRoute: AuthenticatedApiDocsRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedIntegrationsRoute: AuthenticatedIntegrationsRoute,
+  AuthenticatedIntelligenceRoute: AuthenticatedIntelligenceRoute,
   AuthenticatedKnowledgeRoute: AuthenticatedKnowledgeRoute,
   AuthenticatedManagersRoute: AuthenticatedManagersRoute,
   AuthenticatedObjectionsRoute: AuthenticatedObjectionsRoute,

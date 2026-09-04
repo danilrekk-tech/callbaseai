@@ -7,11 +7,24 @@ import { AlertCircle, CheckCircle2, Circle, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { LabeledList, OutcomeBadge, PageHeader, StatCard, StatusBadge } from "@/components/ui-kit";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getCallDetail, processCall } from "@/lib/calls.functions";
-import { PIPELINE_STEPS } from "@/lib/ai/types";
+import {
+  assignCallManager,
+  getCallDetail,
+  processCall,
+  retryCallStage,
+} from "@/lib/calls.functions";
+import { listManagers } from "@/lib/insights.functions";
+import { PIPELINE_STEPS, STAGE_LABELS, type PipelineStage } from "@/lib/ai/types";
 
 export const Route = createFileRoute("/_authenticated/calls/$callId")({
   head: () => ({
@@ -39,6 +52,9 @@ function CallDetail() {
   const { callId } = Route.useParams();
   const fetchDetail = useServerFn(getCallDetail);
   const reprocess = useServerFn(processCall);
+  const retryStageFn = useServerFn(retryCallStage);
+  const assignManager = useServerFn(assignCallManager);
+  const fetchManagers = useServerFn(listManagers);
   const queryClient = useQueryClient();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [currentMs, setCurrentMs] = useState(0);
@@ -58,6 +74,11 @@ function CallDetail() {
     },
   });
 
+  const managersQuery = useQuery({
+    queryKey: ["managers"],
+    queryFn: () => fetchManagers(),
+  });
+
   const reprocessMutation = useMutation({
     mutationFn: () => reprocess({ data: { id: callId } }),
     onSuccess: () => {
@@ -66,6 +87,26 @@ function CallDetail() {
     },
     onError: (error: Error) => toast.error(error.message),
   });
+
+  const retryMutation = useMutation({
+    mutationFn: (vars: { stage: PipelineStage; continueAfter: boolean }) =>
+      retryStageFn({ data: { id: callId, stage: vars.stage, continueAfter: vars.continueAfter } }),
+    onSuccess: () => {
+      toast.success("Этап перезапущен");
+      queryClient.invalidateQueries();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const assignMutation = useMutation({
+    mutationFn: (managerId: string | null) => assignManager({ data: { id: callId, managerId } }),
+    onSuccess: () => {
+      toast.success("Менеджер обновлён, статистика пересчитана");
+      queryClient.invalidateQueries();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
 
   if (isLoading || !data) return <Skeleton className="h-96" />;
 
