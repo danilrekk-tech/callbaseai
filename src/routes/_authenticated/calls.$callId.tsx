@@ -7,11 +7,24 @@ import { AlertCircle, CheckCircle2, Circle, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { LabeledList, OutcomeBadge, PageHeader, StatCard, StatusBadge } from "@/components/ui-kit";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getCallDetail, processCall } from "@/lib/calls.functions";
-import { PIPELINE_STEPS } from "@/lib/ai/types";
+import {
+  assignCallManager,
+  getCallDetail,
+  processCall,
+  retryCallStage,
+} from "@/lib/calls.functions";
+import { listManagers } from "@/lib/insights.functions";
+import { PIPELINE_STEPS, STAGE_LABELS, type PipelineStage } from "@/lib/ai/types";
 
 export const Route = createFileRoute("/_authenticated/calls/$callId")({
   head: () => ({
