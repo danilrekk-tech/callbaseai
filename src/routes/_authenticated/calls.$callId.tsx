@@ -52,6 +52,9 @@ function CallDetail() {
   const { callId } = Route.useParams();
   const fetchDetail = useServerFn(getCallDetail);
   const reprocess = useServerFn(processCall);
+  const retryStageFn = useServerFn(retryCallStage);
+  const assignManager = useServerFn(assignCallManager);
+  const fetchManagers = useServerFn(listManagers);
   const queryClient = useQueryClient();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [currentMs, setCurrentMs] = useState(0);
