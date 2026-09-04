@@ -74,6 +74,11 @@ function CallDetail() {
     },
   });
 
+  const managersQuery = useQuery({
+    queryKey: ["managers"],
+    queryFn: () => fetchManagers(),
+  });
+
   const reprocessMutation = useMutation({
     mutationFn: () => reprocess({ data: { id: callId } }),
     onSuccess: () => {
@@ -82,6 +87,26 @@ function CallDetail() {
     },
     onError: (error: Error) => toast.error(error.message),
   });
+
+  const retryMutation = useMutation({
+    mutationFn: (vars: { stage: PipelineStage; continueAfter: boolean }) =>
+      retryStageFn({ data: { id: callId, stage: vars.stage, continueAfter: vars.continueAfter } }),
+    onSuccess: () => {
+      toast.success("Этап перезапущен");
+      queryClient.invalidateQueries();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const assignMutation = useMutation({
+    mutationFn: (managerId: string | null) => assignManager({ data: { id: callId, managerId } }),
+    onSuccess: () => {
+      toast.success("Менеджер обновлён, статистика пересчитана");
+      queryClient.invalidateQueries();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
 
   if (isLoading || !data) return <Skeleton className="h-96" />;
 
