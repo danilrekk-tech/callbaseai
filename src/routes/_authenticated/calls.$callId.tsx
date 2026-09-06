@@ -493,8 +493,29 @@ function CallDetail() {
           </div>
         </TabsContent>
 
-        <TabsContent value="jobs" className="mt-4">
+        <TabsContent value="jobs" className="mt-4 space-y-4">
+          <div className="panel p-5">
+            <h2 className="text-lg font-semibold">Перезапуск отдельного этапа</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Перезапускается только выбранный этап — остальные результаты сохраняются.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {PIPELINE_STAGES.map((stage) => (
+                <Button
+                  key={stage}
+                  size="sm"
+                  variant="outline"
+                  disabled={retryMutation.isPending}
+                  onClick={() => retryMutation.mutate({ stage, continueAfter: true })}
+                >
+                  {retryMutation.isPending ? <Loader2 className="mr-1 size-3 animate-spin" /> : null}
+                  {STAGE_LABELS[stage] ?? stage}
+                </Button>
+              ))}
+            </div>
+          </div>
           <div className="panel overflow-x-auto">
+
             <table className="w-full min-w-[640px] text-sm">
               <thead className="bg-secondary/60 text-left text-xs uppercase text-muted-foreground">
                 <tr>
