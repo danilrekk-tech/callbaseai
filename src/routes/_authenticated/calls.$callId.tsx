@@ -148,7 +148,28 @@ function CallDetail() {
         <OutcomeBadge outcome={call.outcome as string} />
         <StatusBadge status={call.status as string} />
         {call.client_type ? <Badge variant="secondary">{call.client_type as string}</Badge> : null}
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Менеджер</span>
+          <Select
+            value={(call.manager_id as string | null) ?? "none"}
+            onValueChange={(value) => assignMutation.mutate(value === "none" ? null : value)}
+            disabled={assignMutation.isPending}
+          >
+            <SelectTrigger className="w-56">
+              <SelectValue placeholder="Не назначен" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Не назначен</SelectItem>
+              {(managersQuery.data ?? []).map((manager) => (
+                <SelectItem key={manager.id as string} value={manager.id as string}>
+                  {manager.full_name as string}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
+
 
       {call.error_message ? (
         <div className="panel mt-4 border-destructive/40 p-4 text-sm text-destructive">
