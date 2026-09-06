@@ -24,7 +24,13 @@ import {
   retryCallStage,
 } from "@/lib/calls.functions";
 import { listManagers } from "@/lib/insights.functions";
-import { PIPELINE_STEPS, STAGE_LABELS, type PipelineStage } from "@/lib/ai/types";
+import {
+  PIPELINE_STAGES,
+  PIPELINE_STEPS,
+  STAGE_LABELS,
+  type PipelineStage,
+} from "@/lib/ai/types";
+
 
 export const Route = createFileRoute("/_authenticated/calls/$callId")({
   head: () => ({
