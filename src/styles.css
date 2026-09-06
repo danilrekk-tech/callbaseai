@@ -55,10 +55,11 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
   --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Space Grotesk", "Manrope", ui-sans-serif, sans-serif;
-  --shadow-panel: 0 1px 2px oklch(0.18 0.03 255 / 8%), 0 12px 32px oklch(0.18 0.03 255 / 8%);
-  --gradient-brand: linear-gradient(135deg, oklch(0.28 0.06 255) 0%, oklch(0.42 0.09 215) 100%);
+  --font-display: "Montserrat", "Manrope", ui-sans-serif, sans-serif;
+  --shadow-panel: 0 1px 2px oklch(0.3 0.05 150 / 8%), 0 12px 32px oklch(0.3 0.05 150 / 8%);
+  --gradient-brand: linear-gradient(135deg, oklch(0.42 0.13 152) 0%, oklch(0.56 0.16 148) 100%);
 }
+
 
 :root {
   --radius: 0.75rem;
