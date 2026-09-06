@@ -24,7 +24,13 @@ import {
   retryCallStage,
 } from "@/lib/calls.functions";
 import { listManagers } from "@/lib/insights.functions";
-import { PIPELINE_STEPS, STAGE_LABELS, type PipelineStage } from "@/lib/ai/types";
+import {
+  PIPELINE_STAGES,
+  PIPELINE_STEPS,
+  STAGE_LABELS,
+  type PipelineStage,
+} from "@/lib/ai/types";
+
 
 export const Route = createFileRoute("/_authenticated/calls/$callId")({
   head: () => ({
@@ -148,7 +154,28 @@ function CallDetail() {
         <OutcomeBadge outcome={call.outcome as string} />
         <StatusBadge status={call.status as string} />
         {call.client_type ? <Badge variant="secondary">{call.client_type as string}</Badge> : null}
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Менеджер</span>
+          <Select
+            value={(call.manager_id as string | null) ?? "none"}
+            onValueChange={(value) => assignMutation.mutate(value === "none" ? null : value)}
+            disabled={assignMutation.isPending}
+          >
+            <SelectTrigger className="w-56">
+              <SelectValue placeholder="Не назначен" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Не назначен</SelectItem>
+              {(managersQuery.data ?? []).map((manager) => (
+                <SelectItem key={manager.id as string} value={manager.id as string}>
+                  {manager.full_name as string}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
+
 
       {call.error_message ? (
         <div className="panel mt-4 border-destructive/40 p-4 text-sm text-destructive">
@@ -472,8 +499,29 @@ function CallDetail() {
           </div>
         </TabsContent>
 
-        <TabsContent value="jobs" className="mt-4">
+        <TabsContent value="jobs" className="mt-4 space-y-4">
+          <div className="panel p-5">
+            <h2 className="text-lg font-semibold">Перезапуск отдельного этапа</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Перезапускается только выбранный этап — остальные результаты сохраняются.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {PIPELINE_STAGES.map((stage) => (
+                <Button
+                  key={stage}
+                  size="sm"
+                  variant="outline"
+                  disabled={retryMutation.isPending}
+                  onClick={() => retryMutation.mutate({ stage, continueAfter: true })}
+                >
+                  {retryMutation.isPending ? <Loader2 className="mr-1 size-3 animate-spin" /> : null}
+                  {STAGE_LABELS[stage] ?? stage}
+                </Button>
+              ))}
+            </div>
+          </div>
           <div className="panel overflow-x-auto">
+
             <table className="w-full min-w-[640px] text-sm">
               <thead className="bg-secondary/60 text-left text-xs uppercase text-muted-foreground">
                 <tr>
