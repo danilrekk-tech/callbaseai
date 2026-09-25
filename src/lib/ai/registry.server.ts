@@ -142,6 +142,7 @@ export type ChatResult = { content: string; provider: ProviderRow; latencyMs: nu
 let freeModelsCache: { at: number; ids: string[] } | null = null;
 const deadModels = new Map<string, number>(); // model -> timestamp marked dead
 const DEAD_TTL_MS = 6 * 60 * 60 * 1000;
+const OPENROUTER_FREE_ROUTER = "openrouter/free";
 
 function isOpenRouter(provider: ProviderRow) {
   return Boolean(provider.base_url?.includes("openrouter.ai"));
@@ -188,7 +189,14 @@ function isDead(model: string) {
 /** Errors meaning "this model slug no longer works" — switch model, don't retry. */
 function isModelGoneError(status: number, text: string) {
   if (status === 404) return true;
-  if (status === 400 && /not a valid model|no endpoints|unavailable/i.test(text)) return true;
+  if (
+    status === 400 &&
+    /not a valid model|no endpoints|unavailable|unavailable for free|paid version is available/i.test(
+      text,
+    )
+  ) {
+    return true;
+  }
   return false;
 }
 
@@ -278,14 +286,23 @@ export async function chatCompletion(
     }
 
     let candidates: string[] = [];
-    if (provider.model && !isDead(provider.model)) candidates.push(provider.model);
     if (isOpenRouter(provider)) {
       const free = await listFreeOpenRouterModels();
-      if (provider.model && !free.includes(provider.model) && free.length > 0) {
-        // configured slug is no longer free — skip it entirely
-        candidates = [];
+      // OpenRouter's free router is deliberately first: it selects a currently
+      // available free model on their side and does not depend on stale slugs in
+      // our database or in the periodically cached model catalog.
+      candidates.push(OPENROUTER_FREE_ROUTER);
+      if (
+        provider.model &&
+        provider.model !== OPENROUTER_FREE_ROUTER &&
+        free.includes(provider.model) &&
+        !isDead(provider.model)
+      ) {
+        candidates.push(provider.model);
       }
-      candidates.push(...free.filter((m) => !isDead(m)).slice(0, 6));
+      candidates.push(...free.filter((m) => !isDead(m)));
+    } else if (provider.model && !isDead(provider.model)) {
+      candidates.push(provider.model);
     }
     candidates = [...new Set(candidates)].filter((m) => !triedModels.has(m));
     if (candidates.length === 0) {
@@ -310,6 +327,10 @@ export async function chatCompletion(
         errors.push(`${provider.name} (${model}): ${message}`);
         if (error instanceof HttpError && isModelGoneError(error.status, error.body)) {
           deadModels.set(model, Date.now());
+          // Force the next request to get a fresh free-model catalog. The
+          // current candidate list is still exhausted before the provider is
+          // considered unavailable, so one removed slug cannot stop selection.
+          freeModelsCache = null;
           continue; // try next free model
         }
         await markProviderError(db, { ...provider, model }, message, Date.now() - startedAt);
