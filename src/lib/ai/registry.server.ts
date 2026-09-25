@@ -138,9 +138,121 @@ function retryDelayMs(status: number, retryAfter: string | null, attempt: number
 
 export type ChatResult = { content: string; provider: ProviderRow; latencyMs: number };
 
+// ---- OpenRouter free-model auto-discovery --------------------------------
+let freeModelsCache: { at: number; ids: string[] } | null = null;
+const deadModels = new Map<string, number>(); // model -> timestamp marked dead
+const DEAD_TTL_MS = 6 * 60 * 60 * 1000;
+
+function isOpenRouter(provider: ProviderRow) {
+  return Boolean(provider.base_url?.includes("openrouter.ai"));
+}
+
+/** Live list of currently-free OpenRouter text models, best first. */
+export async function listFreeOpenRouterModels(): Promise<string[]> {
+  if (freeModelsCache && Date.now() - freeModelsCache.at < 30 * 60 * 1000) {
+    return freeModelsCache.ids;
+  }
+  try {
+    const res = await fetchWithTimeout("https://openrouter.ai/api/v1/models", {}, 20_000);
+    if (!res.ok) return freeModelsCache?.ids ?? [];
+    const json = (await res.json()) as {
+      data?: {
+        id: string;
+        context_length?: number;
+        pricing?: { prompt?: string; completion?: string };
+        architecture?: { output_modalities?: string[] };
+      }[];
+    };
+    const ids = (json.data ?? [])
+      .filter(
+        (m) =>
+          m.id.endsWith(":free") &&
+          Number(m.pricing?.prompt ?? 1) === 0 &&
+          Number(m.pricing?.completion ?? 1) === 0 &&
+          (m.architecture?.output_modalities ?? ["text"]).includes("text"),
+      )
+      .sort((a, b) => (b.context_length ?? 0) - (a.context_length ?? 0))
+      .map((m) => m.id);
+    freeModelsCache = { at: Date.now(), ids };
+    return ids;
+  } catch {
+    return freeModelsCache?.ids ?? [];
+  }
+}
+
+function isDead(model: string) {
+  const at = deadModels.get(model);
+  return at != null && Date.now() - at < DEAD_TTL_MS;
+}
+
+/** Errors meaning "this model slug no longer works" — switch model, don't retry. */
+function isModelGoneError(status: number, text: string) {
+  if (status === 404) return true;
+  if (status === 400 && /not a valid model|no endpoints|unavailable/i.test(text)) return true;
+  return false;
+}
+
+class HttpError extends Error {
+  constructor(
+    public status: number,
+    public body: string,
+  ) {
+    super(`HTTP ${status}: ${body.slice(0, 300)}`);
+  }
+}
+
+async function callChatOnce(
+  provider: ProviderRow,
+  key: string,
+  model: string,
+  messages: { role: string; content: string }[],
+  options: { jsonMode?: boolean; maxTokens?: number; temperature?: number; timeoutMs?: number },
+): Promise<string> {
+  const body: Record<string, unknown> = {
+    model,
+    messages,
+    temperature: options.temperature ?? 0.2,
+  };
+  if (options.maxTokens) body["max_tokens"] = options.maxTokens;
+  if (options.jsonMode) body["response_format"] = { type: "json_object" };
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const response = await fetchWithTimeout(
+      provider.base_url!,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders(provider, key) },
+        body: JSON.stringify(body),
+      },
+      options.timeoutMs ?? 180_000,
+    );
+    const text = await response.text();
+    if (!response.ok) {
+      if (!isModelGoneError(response.status, text)) {
+        const delay = retryDelayMs(response.status, response.headers.get("retry-after"), attempt);
+        if (delay != null) {
+          await sleep(delay);
+          continue;
+        }
+      }
+      throw new HttpError(response.status, text);
+    }
+    const json = JSON.parse(text) as {
+      choices?: { message?: { content?: string } }[];
+      error?: { message?: string };
+    };
+    const content = json.choices?.[0]?.message?.content;
+    if (!content) throw new Error(json.error?.message ?? "Пустой ответ модели");
+    return content;
+  }
+  throw new Error("Провайдер перегружен (429/5xx)");
+}
+
 /**
  * Chat completion against any OpenAI-compatible provider, walking the
- * registry by priority (free OpenRouter models first) until one succeeds.
+ * registry by priority. For OpenRouter, dead/paid-only model slugs are
+ * automatically replaced with currently-free models from the live catalog,
+ * and the provider row is updated with the working model.
  */
 export async function chatCompletion(
   db: SupabaseClient,
@@ -156,61 +268,52 @@ export async function chatCompletion(
   if (providers.length === 0) throw new Error("Нет включённых AI-провайдеров для анализа.");
 
   const errors: string[] = [];
+  const triedModels = new Set<string>();
+
   for (const provider of providers) {
     const key = readSecret(provider.secret_name);
     if (!key) {
       errors.push(`${provider.name}: не задан ключ ${provider.secret_name}`);
       continue;
     }
-    const body: Record<string, unknown> = {
-      model: provider.model,
-      messages,
-      temperature: options.temperature ?? 0.2,
-    };
-    if (options.maxTokens) body["max_tokens"] = options.maxTokens;
-    if (options.jsonMode) body["response_format"] = { type: "json_object" };
 
-    for (let attempt = 0; attempt < 2; attempt++) {
+    let candidates: string[] = [];
+    if (provider.model && !isDead(provider.model)) candidates.push(provider.model);
+    if (isOpenRouter(provider)) {
+      const free = await listFreeOpenRouterModels();
+      if (provider.model && !free.includes(provider.model) && free.length > 0) {
+        // configured slug is no longer free — skip it entirely
+        candidates = [];
+      }
+      candidates.push(...free.filter((m) => !isDead(m)).slice(0, 6));
+    }
+    candidates = [...new Set(candidates)].filter((m) => !triedModels.has(m));
+    if (candidates.length === 0) {
+      errors.push(`${provider.name}: нет доступных моделей`);
+      continue;
+    }
+
+    for (const model of candidates) {
+      triedModels.add(model);
       const startedAt = Date.now();
       try {
-        const response = await fetchWithTimeout(
-          provider.base_url!,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json", ...authHeaders(provider, key) },
-            body: JSON.stringify(body),
-          },
-          options.timeoutMs ?? 180_000,
-        );
-        const text = await response.text();
-        if (!response.ok) {
-          const delay = retryDelayMs(
-            response.status,
-            response.headers.get("retry-after"),
-            attempt,
-          );
-          if (delay != null) {
-            await sleep(delay);
-            continue;
-          }
-          throw new Error(`HTTP ${response.status}: ${text.slice(0, 300)}`);
-        }
-        const json = JSON.parse(text) as {
-          choices?: { message?: { content?: string } }[];
-          error?: { message?: string };
-        };
-        const content = json.choices?.[0]?.message?.content;
-        if (!content) {
-          throw new Error(json.error?.message ?? "Пустой ответ модели");
-        }
+        const content = await callChatOnce(provider, key, model, messages, options);
         const latencyMs = Date.now() - startedAt;
+        if (model !== provider.model) {
+          await db.from("ai_providers").update({ model }).eq("id", provider.id);
+          provider.model = model;
+        }
         await markProviderSuccess(db, provider, latencyMs);
         return { content, provider, latencyMs };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        errors.push(`${provider.name} (${provider.model}): ${message}`);
-        await markProviderError(db, provider, message, Date.now() - startedAt);
-        break;
+        errors.push(`${provider.name} (${model}): ${message}`);
+        if (error instanceof HttpError && isModelGoneError(error.status, error.body)) {
+          deadModels.set(model, Date.now());
+          continue; // try next free model
+        }
+        await markProviderError(db, { ...provider, model }, message, Date.now() - startedAt);
+        if (error instanceof HttpError && (error.status === 401 || error.status === 402)) break;
       }
     }
   }
